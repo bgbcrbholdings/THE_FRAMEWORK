@@ -177,7 +177,8 @@ class TestRegressionWatchdog(unittest.TestCase):
             slow_test.write_text("import unittest, time\nclass TestSlow(unittest.TestCase):\n    def test_slow(self): time.sleep(15)\n", encoding="utf-8")
 
             runner = RegressionWatchdog(str(PROJECT_ROOT), timeout_seconds=2)
-            result = runner.run_regression_suite(exclude_files=self._get_tracked_excludes())
+            excludes = [p.name for p in (PROJECT_ROOT / "tests").glob("test_*.py") if p.name != "test_slow_fixture.py"]
+            result = runner.run_regression_suite(exclude_files=excludes)
 
             self.assertEqual(result["status"], "FAIL")
             self.assertGreaterEqual(result["failed"], 1)

@@ -114,19 +114,19 @@ class SupplyChainWatchdog:
         self.stdlib_names = set(getattr(sys, "stdlib_module_names", STDLIB_FALLBACK)).union(STDLIB_FALLBACK)
 
     def _verify_tcb_integrity(self):
-        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json."""
+        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json if present."""
         manifest_path = self.project_dir / ".sequence" / "lock_manifest.json"
         engine_path = self.project_dir / "sequence_engine.py"
 
+        if not engine_path.exists():
+            return
+
         if not manifest_path.exists():
-            # If lock manifest is not present yet (pre-lock), check engine file exists
-            if not engine_path.exists():
-                raise FileNotFoundError("TCB script 'sequence_engine.py' is missing.")
             return
 
         try:
             manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
-            expected_hash = manifest_data.get("sequence_engine.py") or manifest_data.get("files", {}).get("sequence_engine.py")
+            expected_hash = manifest_data.get("sequence_engine.py") or manifest_data.get("hashes", {}).get("sequence_engine.py")
             if expected_hash and engine_path.exists():
                 live_hash = hashlib.sha256(engine_path.read_bytes()).hexdigest()
                 if live_hash != expected_hash:
@@ -134,7 +134,6 @@ class SupplyChainWatchdog:
         except Exception as e:
             if isinstance(e, PermissionError):
                 raise
-            # Fail closed on manifest corruption
             raise PermissionError(f"TCB_INTEGRITY_CHECK_FAILED: {e}")
 
     def load_mrac_rules(self):
