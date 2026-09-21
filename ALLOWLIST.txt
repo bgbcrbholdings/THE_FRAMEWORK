@@ -6,10 +6,13 @@ watchdog.py
 regr_watchdog.py
 file_hygiene_engine.py
 sequence_engine.py
+project_wizard.py
 tests/test_api_fail_closed.py
 tests/test_lock_wall.py
 tests/test_watchdog.py
 tests/test_sequence_engine.py
+tests/test_genesis.py
+
 
 
 
