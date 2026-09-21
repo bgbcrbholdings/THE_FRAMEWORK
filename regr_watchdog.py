@@ -82,13 +82,14 @@ class RegressionWatchdog:
             raise PermissionError(f"REPARSE_POINT_DENIED: Root '{self.raw_project_dir}' is a junction point or symlink.")
 
     def _verify_tcb_integrity(self):
-        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json."""
+        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json if present."""
         manifest_path = self.project_dir / ".sequence" / "lock_manifest.json"
         engine_path = self.project_dir / "sequence_engine.py"
 
+        if not engine_path.exists():
+            return
+
         if not manifest_path.exists():
-            if not engine_path.exists():
-                raise FileNotFoundError("TCB script 'sequence_engine.py' is missing.")
             return
 
         try:

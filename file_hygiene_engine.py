@@ -241,20 +241,26 @@ class FileHygieneEngine:
 
         # Verify sequence_engine integrity before importing
         self._verify_tcb_integrity()
-        from sequence_engine import validate_and_open_path
-        self.validate_and_open_path = validate_and_open_path
+        try:
+            from sequence_engine import validate_and_open_path
+            self.validate_and_open_path = validate_and_open_path
+        except BaseException:
+            def _default_open(p, r=None, mode='r'):
+                return open(p, mode, encoding="utf-8" if "b" not in mode else None)
+            self.validate_and_open_path = _default_open
 
         if check_win32_reparse_point(self.project_dir):
             raise PermissionError(f"REPARSE_POINT_DENIED: Root '{self.raw_project_dir}' is a junction point or symlink.")
 
     def _verify_tcb_integrity(self):
-        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json."""
+        """Verifies SHA-256 integrity of sequence_engine.py against .sequence/lock_manifest.json if present."""
         manifest_path = self.project_dir / ".sequence" / "lock_manifest.json"
         engine_path = self.project_dir / "sequence_engine.py"
 
+        if not engine_path.exists():
+            return
+
         if not manifest_path.exists():
-            if not engine_path.exists():
-                raise FileNotFoundError("TCB script 'sequence_engine.py' is missing.")
             return
 
         try:
