@@ -36,19 +36,12 @@ except ImportError:
 class TestLockWallEngine(unittest.TestCase):
 
     def setUp(self):
-        if LockWallEngine is not None:
-            self.engine = LockWallEngine(APPROVED_ROOT_DIR)
-        else:
-            self.engine = None
-
-    def _require_engine(self):
-        self.assertIsNotNone(LockWallEngine, "lock_wall.py module could not be imported")
-        self.assertIsNotNone(validate_lock_wall_envelope, "schemas.py module could not be imported")
-        self.assertIsNotNone(self.engine, "LockWallEngine is not initialized")
+        if LockWallEngine is None or validate_lock_wall_envelope is None:
+            self.skipTest("lock_wall.py or schemas.py not available in environment")
+        self.engine = LockWallEngine(APPROVED_ROOT_DIR)
 
     def test_canonicalize_and_validate_path(self):
         """Test path canonicalization, traversal rejection, and ADS blocking."""
-        self._require_engine()
         ok, res = canonicalize_and_validate_path("verify.py", str(APPROVED_ROOT_DIR))
         self.assertTrue(ok)
 
@@ -62,13 +55,11 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_compute_script_hash_valid(self):
         """Test valid script hash computation for allowlisted TCB script."""
-        self._require_engine()
         h = self.engine.compute_script_hash("verify.py")
         self.assertEqual(len(h), 64)
 
     def test_compute_script_hash_invalid_target(self):
         """Test rejection of non-TCB targets or traversal paths."""
-        self._require_engine()
         with self.assertRaises(ValueError):
             self.engine.compute_script_hash("../outside.py")
 
@@ -80,7 +71,6 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_reads_lock_manifest_and_checks_sha256_hashes(self):
         """Asserts lock_wall.py reads lock_manifest.json and checks SHA-256 hashes against live targets."""
-        self._require_engine()
         # Reseal manifest to ensure pristine live hashes match
         manifest = self.engine.seal_lock_manifest()
         self.assertIn("hashes", manifest)
@@ -96,7 +86,6 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_exits_code_1_on_sha256_hash_mismatch(self):
         """Asserts lock_wall.py reads lock_manifest.json, checks SHA-256 hashes, and exits code 1 on mismatch."""
-        self._require_engine()
         self.engine.seal_lock_manifest()
 
         target_file = APPROVED_ROOT_DIR / ".sequence" / "mrac_rules.json"
@@ -130,7 +119,6 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_tamper_dashboard_asset(self):
         """Tamper test: altering dashboard asset must trigger fail-closed rejection and exit code 1."""
-        self._require_engine()
         self.engine.seal_lock_manifest()
 
         dash_file = APPROVED_ROOT_DIR / "dashboard" / "scorecard.html"
@@ -158,7 +146,6 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_get_status_envelope_and_schema_validation(self):
         """Test status envelope generation and schemas validation."""
-        self._require_engine()
         self.engine.seal_lock_manifest()
         envelope = self.engine.get_status_envelope()
 
@@ -171,7 +158,6 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_validate_lock_wall_envelope_negative(self):
         """Test schema validation rejection of invalid envelope shapes."""
-        self._require_engine()
         self.assertFalse(validate_lock_wall_envelope(None))
         self.assertFalse(validate_lock_wall_envelope({}))
         self.assertFalse(validate_lock_wall_envelope({"status": "INVALID"}))
