@@ -45,6 +45,12 @@ STDLIB_FALLBACK = {
     "pytest"
 }
 
+KNOWN_TCB_MODULES = {
+    "verify", "sequence_server", "schemas", "auditor_agent",
+    "build_packet", "parse_reviews", "agent_dispatcher",
+    "sequence_engine", "watchdog", "project_wizard", "lock_wall"
+}
+
 def check_win32_reparse_point(path_obj):
     """Native Win32 atomic reparse-point check. Returns True if junction/symlink detected."""
     if os.name != 'nt':
@@ -156,12 +162,6 @@ class SupplyChainWatchdog:
             return forbidden, []
         except Exception as e:
             return None, [f"MRAC_RULES_INVALID: Failed to load mrac_rules.json: {e}"]
-
-KNOWN_TCB_MODULES = {
-    "verify", "sequence_server", "schemas", "auditor_agent",
-    "build_packet", "parse_reviews", "agent_dispatcher",
-    "sequence_engine", "watchdog", "project_wizard", "lock_wall"
-}
 
     def is_first_party_module(self, top_module_name):
         """Returns True if top_module_name resolves to a first-party .py file or package under project_dir."""
