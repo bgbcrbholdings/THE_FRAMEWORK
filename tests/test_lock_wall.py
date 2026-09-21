@@ -89,6 +89,9 @@ class TestLockWallEngine(unittest.TestCase):
         self.engine.seal_lock_manifest()
 
         target_file = APPROVED_ROOT_DIR / ".sequence" / "mrac_rules.json"
+        if not target_file.exists():
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
         original_content = target_file.read_text(encoding="utf-8")
 
         try:
