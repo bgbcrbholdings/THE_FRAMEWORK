@@ -1,0 +1,5 @@
+FORBIDDEN_BUILDER_ACTIONS:
+  - Modifying tests/ or contract scripts
+  - Modifying .github/workflows/ or CODEOWNERS
+  - Modifying lock_manifest.json or governance files
+  - Creating un-allowlisted files or packages
