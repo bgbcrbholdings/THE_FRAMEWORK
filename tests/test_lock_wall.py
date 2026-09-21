@@ -18,16 +18,26 @@ import subprocess
 import unittest
 from pathlib import Path
 
-# Add project root to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+try:
+    from lock_wall import LockWallEngine, canonicalize_and_validate_path, get_tcb_hash_targets, APPROVED_ROOT_DIR
+except ImportError:
+    LockWallEngine = None
+    canonicalize_and_validate_path = None
+    get_tcb_hash_targets = None
+    APPROVED_ROOT_DIR = Path(__file__).resolve().parent.parent
 
-from lock_wall import LockWallEngine, canonicalize_and_validate_path, get_tcb_hash_targets, APPROVED_ROOT_DIR
-from schemas import validate_lock_wall_envelope
+try:
+    from schemas import validate_lock_wall_envelope
+except ImportError:
+    validate_lock_wall_envelope = None
+
 
 
 class TestLockWallEngine(unittest.TestCase):
 
     def setUp(self):
+        self.assertIsNotNone(LockWallEngine, "lock_wall.py module could not be imported")
+        self.assertIsNotNone(validate_lock_wall_envelope, "schemas.py module could not be imported")
         self.engine = LockWallEngine(APPROVED_ROOT_DIR)
 
     def test_canonicalize_and_validate_path(self):
