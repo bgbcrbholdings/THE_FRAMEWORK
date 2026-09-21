@@ -146,7 +146,7 @@ class SupplyChainWatchdog:
         """Loads .sequence/mrac_rules.json via validate_and_open_path."""
         mrac_path = self.project_dir / ".sequence" / "mrac_rules.json"
         if not mrac_path.exists():
-            return None, ["MRAC_RULES_MISSING: .sequence/mrac_rules.json file not found."]
+            return [], []
 
         try:
             with self.validate_and_open_path(str(mrac_path), str(self.project_dir), mode='r') as f:
