@@ -31,6 +31,9 @@ def _find_sequence_server():
     return None
 
 
+SEQUENCE_SERVER_PATH = _find_sequence_server()
+
+
 def _fixture(func):
     if pytest is not None:
         return pytest.fixture(func)
