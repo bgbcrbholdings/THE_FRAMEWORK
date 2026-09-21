@@ -116,12 +116,8 @@ def canonicalize_and_validate_path(path_str, root_dir_str=None):
 def get_tcb_hash_targets(root_dir=APPROVED_ROOT_DIR):
     """Returns sorted list of root-relative POSIX paths for all TCB targets."""
     root_dir = Path(root_dir).resolve()
-    targets = set()
-    for script in TCB_ENGINE_SCRIPTS:
-        if (root_dir / script).exists():
-            targets.add(script)
-    if (root_dir / ".sequence/mrac_rules.json").exists():
-        targets.add(".sequence/mrac_rules.json")
+    targets = set(TCB_ENGINE_SCRIPTS)
+    targets.add(".sequence/mrac_rules.json")
 
     dash_dir = root_dir / "dashboard"
     if dash_dir.exists():
@@ -169,7 +165,7 @@ class LockWallEngine:
 
         val_path = Path(validated_path_str)
         if not val_path.exists():
-            raise FileNotFoundError(f"FILE_NOT_FOUND: '{relative_script_path}' does not exist")
+            raise ValueError(f"FILE_NOT_FOUND: Target '{relative_script_path}' does not exist")
         if not val_path.is_file() or check_win32_reparse_point(val_path):
             raise PermissionError(f"NON_REGULAR_FILE_OR_REPARSE: '{relative_script_path}' is invalid")
 
