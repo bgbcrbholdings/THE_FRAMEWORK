@@ -6,7 +6,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pytest
+try:
+    import pytest
+except ImportError:
+    pytest = None
 
 
 def _find_sequence_server():
@@ -31,7 +34,12 @@ def _find_sequence_server():
 SEQUENCE_SERVER_PATH = _find_sequence_server()
 
 
-@pytest.fixture
+def _noop_decorator(func):
+    return func
+
+fixture = pytest.fixture if pytest is not None else _noop_decorator
+
+@fixture
 def isolated_missing_db_env(tmp_path, monkeypatch):
     """
     Sets up a clean working directory with no .sequence/state.db
