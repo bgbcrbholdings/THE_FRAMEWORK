@@ -21,18 +21,19 @@ if str(PROJECT_ROOT) not in sys.path:
 
 try:
     from watchdog import SupplyChainWatchdog
-except ImportError:
+except BaseException:
     SupplyChainWatchdog = None
 
 try:
     from regr_watchdog import RegressionWatchdog
-except ImportError:
+except BaseException:
     RegressionWatchdog = None
 
 try:
     from file_hygiene_engine import FileHygieneEngine
-except ImportError:
+except BaseException:
     FileHygieneEngine = None
+
 
 from schemas import (
     validate_watchdog_envelope,
