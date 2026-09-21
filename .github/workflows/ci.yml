@@ -1,0 +1,507 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
+
+# Pull-request code and dependencies are untrusted.
+# Grant only the permission required to check out repository contents.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate_contract_type:
+    name: Validate Contract Type
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      contract_type: ${{ steps.validate.outputs.contract_type }}
+
+    steps:
+      - name: Require exactly one recognized contract label
+        id: validate
+        env:
+          EVENT_PATH: ${{ github.event_path }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          with open(os.environ["EVENT_PATH"], encoding="utf-8") as event_file:
+              event = json.load(event_file)
+
+          labels = {
+              label["name"]
+              for label in event["pull_request"].get("labels", [])
+              if isinstance(label, dict) and isinstance(label.get("name"), str)
+          }
+
+          recognized = labels & {"type:contract", "type:build"}
+
+          if len(recognized) != 1:
+              print(
+                  "::error::Pull request must have exactly one of "
+                  "'type:contract' or 'type:build'."
+              )
+              print(f"Recognized labels: {sorted(recognized)!r}")
+              sys.exit(1)
+
+          contract_type = (
+              "contract" if "type:contract" in recognized else "build"
+          )
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"contract_type={contract_type}\n")
+
+          print(f"Validated contract type: {contract_type}")
+          PY
+
+  check_allowlist:
+    name: Check Allowlist
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout pull-request merge commit
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify event commits are available
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+
+      - name: Set up Python
+        # actions/setup-python v5.4.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.11"
+          check-latest: false
+
+      - name: Check changed paths against trusted base allowlist
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          base_sha = os.environ["BASE_SHA"]
+          head_sha = os.environ["HEAD_SHA"]
+
+          def git(*args):
+              return subprocess.run(
+                  ["git", *args],
+                  check=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+              ).stdout
+
+          # Read the policy from the immutable base commit. A pull request
+          # therefore cannot authorize itself by editing ALLOWLIST.txt.
+          try:
+              raw_allowlist = git(
+                  "show",
+                  f"{base_sha}:ALLOWLIST.txt",
+              )
+          except subprocess.CalledProcessError as exc:
+              sys.stderr.buffer.write(exc.stderr)
+              print(
+                  "::error::ALLOWLIST.txt is missing or unreadable "
+                  "in the pull request's base commit."
+              )
+              sys.exit(1)
+
+          allowlist = set()
+
+          for line_number, raw_line in enumerate(
+              raw_allowlist.splitlines(), start=1
+          ):
+              entry = raw_line.strip()
+
+              if not entry or entry.startswith(b"#"):
+                  continue
+
+              if b"\x00" in entry:
+                  print(
+                      f"::error::Invalid NUL byte in base ALLOWLIST.txt "
+                      f"at line {line_number}."
+                  )
+                  sys.exit(1)
+
+              if entry.startswith(b"/"):
+                  print(
+                      f"::error::Absolute path in base ALLOWLIST.txt "
+                      f"at line {line_number}."
+                  )
+                  sys.exit(1)
+
+              components = entry.split(b"/")
+              if any(component in (b"", b".", b"..") for component in components):
+                  print(
+                      f"::error::Non-canonical path in base ALLOWLIST.txt "
+                      f"at line {line_number}."
+                  )
+                  sys.exit(1)
+
+              allowlist.add(entry)
+
+          if not allowlist:
+              print("::error::The trusted base ALLOWLIST.txt is empty.")
+              sys.exit(1)
+
+          # NUL-delimited output safely handles spaces, tabs, and newlines
+          # in valid Git pathnames. Compare the event's immutable commits.
+          raw_changed = git(
+              "diff",
+              "--name-only",
+              "-z",
+              "--diff-filter=ACDMRTUXB",
+              base_sha,
+              head_sha,
+              "--",
+          )
+          changed_files = {
+              path for path in raw_changed.split(b"\x00") if path
+          }
+
+          if not changed_files:
+              print("::error::No changed paths were found.")
+              sys.exit(1)
+
+          disallowed = sorted(changed_files - allowlist)
+
+          if disallowed:
+              print("::error::Changed paths not authorized by base ALLOWLIST.txt:")
+              for path in disallowed:
+                  print(f"  - {os.fsdecode(path)!r}")
+              sys.exit(1)
+
+          print("All changed paths are authorized by the trusted base allowlist.")
+          PY
+
+  contract_baseline:
+    name: Contract Baseline
+    needs:
+      - validate_contract_type
+      - check_allowlist
+    if: needs.validate_contract_type.outputs.contract_type == 'contract'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout pull-request merge commit
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v5.4.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.11"
+          check-latest: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --disable-pip-version-check "pip==25.1.1"
+
+          if [[ -f requirements.txt ]]; then
+            python -m pip install \
+              --disable-pip-version-check \
+              -r requirements.txt
+          fi
+
+          python -m pip install \
+            --disable-pip-version-check \
+            "pytest==8.3.5"
+
+      - name: Run baseline and require genuine test failures
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          report_file="${RUNNER_TEMP}/baseline-results.xml"
+          rm -f -- "$report_file"
+
+          set +e
+          python -m pytest \
+            --junitxml="$report_file" \
+            -o junit_family=xunit2
+          pytest_status=$?
+          set -e
+
+          export REPORT_FILE="$report_file"
+          export PYTEST_STATUS="$pytest_status"
+
+          python - <<'PY'
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          status = int(os.environ["PYTEST_STATUS"])
+          report = os.environ["REPORT_FILE"]
+
+          # pytest exit status 1 specifically means tests failed.
+          # Collection errors, interruption, misuse, and no-tests-collected
+          # use other exit statuses and must not satisfy the baseline.
+          if status != 1:
+              print(
+                  "::error::Baseline pytest must exit with status 1 "
+                  f"(test failures); received {status}."
+              )
+              sys.exit(1)
+
+          try:
+              root = ET.parse(report).getroot()
+          except (OSError, ET.ParseError) as exc:
+              print(f"::error::Missing or invalid pytest XML report: {exc}")
+              sys.exit(1)
+
+          suites = (
+              [root]
+              if root.tag == "testsuite"
+              else list(root.findall(".//testsuite"))
+          )
+
+          if not suites:
+              print("::error::The pytest report contains no test suites.")
+              sys.exit(1)
+
+          def total(attribute):
+              try:
+                  return sum(
+                      int(suite.attrib.get(attribute, "0"))
+                      for suite in suites
+                  )
+              except ValueError:
+                  print(
+                      f"::error::Invalid {attribute!r} count "
+                      "in pytest XML report."
+                  )
+                  sys.exit(1)
+
+          tests = total("tests")
+          failures = total("failures")
+          errors = total("errors")
+
+          if tests < 1:
+              print("::error::No tests were collected.")
+              sys.exit(1)
+
+          if errors != 0:
+              print(
+                  "::error::Baseline contains collection, setup, teardown, "
+                  f"or execution errors ({errors}); only assertion failures "
+                  "are acceptable."
+              )
+              sys.exit(1)
+
+          if failures < 1:
+              print(
+                  "::error::Baseline did not contain any recorded "
+                  "test assertion failures."
+              )
+              sys.exit(1)
+
+          print(
+              f"Baseline validated: {tests} tests, "
+              f"{failures} expected failures, 0 errors."
+          )
+          PY
+
+  contract_pass:
+    name: Contract Pass
+    needs:
+      - validate_contract_type
+      - check_allowlist
+    if: needs.validate_contract_type.outputs.contract_type == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout pull-request merge commit
+        # actions/checkout v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v5.4.0
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38
+        with:
+          python-version: "3.11"
+          check-latest: false
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python -m pip install --disable-pip-version-check "pip==25.1.1"
+
+          if [[ -f requirements.txt ]]; then
+            python -m pip install \
+              --disable-pip-version-check \
+              -r requirements.txt
+          fi
+
+          python -m pip install \
+            --disable-pip-version-check \
+            "pytest==8.3.5"
+
+      - name: Run pytest and require collected passing tests
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          report_file="${RUNNER_TEMP}/passing-results.xml"
+          rm -f -- "$report_file"
+
+          python -m pytest \
+            --junitxml="$report_file" \
+            -o junit_family=xunit2
+
+          export REPORT_FILE="$report_file"
+
+          python - <<'PY'
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          report = os.environ["REPORT_FILE"]
+
+          try:
+              root = ET.parse(report).getroot()
+          except (OSError, ET.ParseError) as exc:
+              print(f"::error::Missing or invalid pytest XML report: {exc}")
+              sys.exit(1)
+
+          suites = (
+              [root]
+              if root.tag == "testsuite"
+              else list(root.findall(".//testsuite"))
+          )
+
+          try:
+              tests = sum(
+                  int(suite.attrib.get("tests", "0"))
+                  for suite in suites
+              )
+              failures = sum(
+                  int(suite.attrib.get("failures", "0"))
+                  for suite in suites
+              )
+              errors = sum(
+                  int(suite.attrib.get("errors", "0"))
+                  for suite in suites
+              )
+          except ValueError:
+              print("::error::Invalid count in pytest XML report.")
+              sys.exit(1)
+
+          if tests < 1:
+              print("::error::No tests were collected.")
+              sys.exit(1)
+
+          if failures or errors:
+              print(
+                  f"::error::Unexpected pytest results: "
+                  f"{failures} failures and {errors} errors."
+              )
+              sys.exit(1)
+
+          print(f"Validated {tests} passing tests.")
+          PY
+
+  ci_result:
+    name: CI Result
+    if: always()
+    needs:
+      - validate_contract_type
+      - check_allowlist
+      - contract_baseline
+      - contract_pass
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Enforce aggregate result
+        env:
+          TYPE_RESULT: ${{ needs.validate_contract_type.result }}
+          ALLOWLIST_RESULT: ${{ needs.check_allowlist.result }}
+          CONTRACT_TYPE: ${{ needs.validate_contract_type.outputs.contract_type }}
+          BASELINE_RESULT: ${{ needs.contract_baseline.result }}
+          PASS_RESULT: ${{ needs.contract_pass.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$TYPE_RESULT" != "success" ]]; then
+            echo "::error::Contract-type validation did not succeed."
+            exit 1
+          fi
+
+          if [[ "$ALLOWLIST_RESULT" != "success" ]]; then
+            echo "::error::Allowlist validation did not succeed."
+            exit 1
+          fi
+
+          case "$CONTRACT_TYPE" in
+            contract)
+              if [[ "$BASELINE_RESULT" != "success" ]] ||
+                 [[ "$PASS_RESULT" != "skipped" ]]; then
+                echo "::error::Invalid contract-baseline job result."
+                exit 1
+              fi
+              ;;
+            build)
+              if [[ "$PASS_RESULT" != "success" ]] ||
+                 [[ "$BASELINE_RESULT" != "skipped" ]]; then
+                echo "::error::Invalid contract-pass job result."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Missing or invalid validated contract type."
+              exit 1
+              ;;
+          esac
+
+          echo "All required CI policy checks succeeded."
