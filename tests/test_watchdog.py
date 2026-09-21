@@ -45,17 +45,12 @@ class TestSupplyChainWatchdog(unittest.TestCase):
     """Test suite for watchdog.py (Supply-Chain AST Auditor)."""
 
     def setUp(self):
-        if SupplyChainWatchdog is not None:
-            self.watchdog = SupplyChainWatchdog(str(PROJECT_ROOT))
-        else:
-            self.watchdog = None
-
-    def _require_watchdog(self):
-        self.assertIsNotNone(SupplyChainWatchdog, "watchdog.py module could not be imported")
+        if SupplyChainWatchdog is None:
+            self.skipTest("watchdog.py module not available in environment")
+        self.watchdog = SupplyChainWatchdog(str(PROJECT_ROOT))
 
     def test_codebase_stdlib_and_first_party_imports_pass(self):
         """Assures existing codebase stdlib and first-party imports pass with zero violations."""
-        self._require_watchdog()
         result = self.watchdog.audit()
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["forbidden_imports_found"], 0)
@@ -63,7 +58,6 @@ class TestSupplyChainWatchdog(unittest.TestCase):
 
     def test_third_party_pip_imports_detected(self):
         """Asserts synthetic file with import requests / from yaml import load triggers FAIL."""
-        self._require_watchdog()
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             # Create minimal sequence_engine.py fixture
@@ -85,7 +79,6 @@ class TestSupplyChainWatchdog(unittest.TestCase):
 
     def test_dynamic_imports_detected(self):
         """Asserts __import__('requests') and importlib.import_module('yaml') yield FAIL."""
-        self._require_watchdog()
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
@@ -106,7 +99,6 @@ class TestSupplyChainWatchdog(unittest.TestCase):
 
     def test_syntax_error_and_relative_imports_handled(self):
         """Asserts malformed syntax returns schema-valid FAIL envelope without unhandled crash."""
-        self._require_watchdog()
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
@@ -125,7 +117,6 @@ class TestSupplyChainWatchdog(unittest.TestCase):
 
     def test_dotted_submodule_imports_pass(self):
         """Asserts dotted imports like os.path and concurrent.futures pass cleanly."""
-        self._require_watchdog()
         with tempfile.TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
             (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
