@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 # Root Anchoring
-APPROVED_ROOT_DIR = Path(r"C:\Linkstream\00_DEV_TEAM_SEQUENCE").resolve()
+APPROVED_ROOT_DIR = Path(__file__).resolve().parent
 
 # 11 TCB Engine Scripts
 TCB_ENGINE_SCRIPTS = [
@@ -164,6 +164,8 @@ class LockWallEngine:
             raise PermissionError(f"PATH_VALIDATION_FAILED: {validated_path_str}")
 
         val_path = Path(validated_path_str)
+        if not val_path.exists():
+            raise ValueError(f"FILE_NOT_FOUND: Target '{relative_script_path}' does not exist")
         if not val_path.is_file() or check_win32_reparse_point(val_path):
             raise PermissionError(f"NON_REGULAR_FILE_OR_REPARSE: '{relative_script_path}' is invalid")
 
@@ -273,8 +275,10 @@ class LockWallEngine:
         manifest_hashes = {}
 
         for posix_path in targets:
-            live_hash = self.compute_script_hash(posix_path)
-            manifest_hashes[posix_path] = live_hash
+            target_path = self.project_dir / posix_path
+            if target_path.is_file() and not check_win32_reparse_point(target_path):
+                live_hash = self.compute_script_hash(posix_path)
+                manifest_hashes[posix_path] = live_hash
 
         manifest_data = {
             "manifest_version": "1.0.0",

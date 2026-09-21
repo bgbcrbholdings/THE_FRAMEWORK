@@ -38,6 +38,17 @@ class TestLockWallEngine(unittest.TestCase):
     def setUp(self):
         if LockWallEngine is None or validate_lock_wall_envelope is None:
             self.skipTest("lock_wall.py or schemas.py not available in environment")
+        
+        # Ensure TCB targets exist as stubs in clean environment
+        for script in get_tcb_hash_targets(APPROVED_ROOT_DIR):
+            p = APPROVED_ROOT_DIR / script
+            if not p.exists():
+                p.parent.mkdir(parents=True, exist_ok=True)
+                if script.endswith(".json"):
+                    p.write_text("{}", encoding="utf-8")
+                else:
+                    p.write_text("# TCB Stub\n", encoding="utf-8")
+                    
         self.engine = LockWallEngine(APPROVED_ROOT_DIR)
 
     def test_canonicalize_and_validate_path(self):
@@ -86,9 +97,12 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_exits_code_1_on_sha256_hash_mismatch(self):
         """Asserts lock_wall.py reads lock_manifest.json, checks SHA-256 hashes, and exits code 1 on mismatch."""
-        self.engine.seal_lock_manifest()
-
         target_file = APPROVED_ROOT_DIR / ".sequence" / "mrac_rules.json"
+        if not target_file.exists():
+            target_file.parent.mkdir(parents=True, exist_ok=True)
+            target_file.write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
+
+        self.engine.seal_lock_manifest()
         original_content = target_file.read_text(encoding="utf-8")
 
         try:

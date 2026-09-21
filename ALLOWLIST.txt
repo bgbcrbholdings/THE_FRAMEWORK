@@ -3,8 +3,11 @@ sequence_server.py
 lock_wall.py
 schemas.py
 watchdog.py
+regr_watchdog.py
+file_hygiene_engine.py
 tests/test_api_fail_closed.py
 tests/test_lock_wall.py
 tests/test_watchdog.py
+
 
 
