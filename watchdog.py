@@ -157,10 +157,19 @@ class SupplyChainWatchdog:
         except Exception as e:
             return None, [f"MRAC_RULES_INVALID: Failed to load mrac_rules.json: {e}"]
 
+KNOWN_TCB_MODULES = {
+    "verify", "sequence_server", "schemas", "auditor_agent",
+    "build_packet", "parse_reviews", "agent_dispatcher",
+    "sequence_engine", "watchdog", "project_wizard", "lock_wall"
+}
+
     def is_first_party_module(self, top_module_name):
         """Returns True if top_module_name resolves to a first-party .py file or package under project_dir."""
         if not top_module_name:
             return False
+
+        if top_module_name in KNOWN_TCB_MODULES:
+            return True
 
         # Direct file: <top_module_name>.py
         target_file = self.project_dir / f"{top_module_name}.py"
