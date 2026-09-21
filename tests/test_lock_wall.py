@@ -97,12 +97,12 @@ class TestLockWallEngine(unittest.TestCase):
 
     def test_exits_code_1_on_sha256_hash_mismatch(self):
         """Asserts lock_wall.py reads lock_manifest.json, checks SHA-256 hashes, and exits code 1 on mismatch."""
-        self.engine.seal_lock_manifest()
-
         target_file = APPROVED_ROOT_DIR / ".sequence" / "mrac_rules.json"
         if not target_file.exists():
             target_file.parent.mkdir(parents=True, exist_ok=True)
             target_file.write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
+
+        self.engine.seal_lock_manifest()
         original_content = target_file.read_text(encoding="utf-8")
 
         try:
