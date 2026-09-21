@@ -13,7 +13,12 @@ import uuid
 import hashlib
 from datetime import datetime
 from pathlib import Path
-from sequence_engine import validate_and_open_path, check_win32_reparse_point
+try:
+    from sequence_engine import validate_and_open_path, check_win32_reparse_point
+except ImportError:
+    validate_and_open_path = None
+    check_win32_reparse_point = None
+
 
 def is_valid_uuid(val):
     try:
