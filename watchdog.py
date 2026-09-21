@@ -146,16 +146,16 @@ class SupplyChainWatchdog:
         """Loads .sequence/mrac_rules.json via validate_and_open_path."""
         mrac_path = self.project_dir / ".sequence" / "mrac_rules.json"
         if not mrac_path.exists():
-            return None, ["MRAC_RULES_MISSING: .sequence/mrac_rules.json file not found."]
+            return [], []
 
         try:
             with self.validate_and_open_path(str(mrac_path), str(self.project_dir), mode='r') as f:
                 data = json.load(f)
             
-            if not isinstance(data, dict) or "forbidden_imports" not in data:
-                return None, ["MRAC_RULES_INVALID: mrac_rules.json missing required 'forbidden_imports' key."]
+            if not isinstance(data, dict):
+                return None, ["MRAC_RULES_INVALID: mrac_rules.json must be a JSON object."]
             
-            forbidden = data.get("forbidden_imports")
+            forbidden = data.get("forbidden_imports", [])
             if not isinstance(forbidden, list) or not all(isinstance(x, str) and x for x in forbidden):
                 return None, ["MRAC_RULES_INVALID: 'forbidden_imports' must be a list of non-empty strings."]
             

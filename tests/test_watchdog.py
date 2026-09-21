@@ -52,7 +52,7 @@ class TestSupplyChainWatchdog(unittest.TestCase):
     def test_codebase_stdlib_and_first_party_imports_pass(self):
         """Assures existing codebase stdlib and first-party imports pass with zero violations."""
         result = self.watchdog.audit()
-        self.assertEqual(result["status"], "PASS")
+        assert result["status"] == "PASS", f"Audit violations: {result.get('violations')}"
         self.assertEqual(result["forbidden_imports_found"], 0)
         self.assertEqual(len(result["violations"]), 0)
 
