@@ -1,3 +1,5 @@
 ALLOWLIST.txt
 sequence_server.py
+lock_wall.py
 tests/test_api_fail_closed.py
+tests/test_lock_wall.py
