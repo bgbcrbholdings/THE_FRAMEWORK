@@ -97,7 +97,9 @@ class LockWallSandboxTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self._tmpdir = tempfile.TemporaryDirectory(prefix="lock_wall_canary_")
+        self._tmpdir = tempfile.TemporaryDirectory(
+            dir=str(lock_wall.APPROVED_ROOT_DIR), prefix="lock_wall_canary_"
+        )
         self.project_dir = Path(self._tmpdir.name).resolve()
 
         self.assertEqual(
