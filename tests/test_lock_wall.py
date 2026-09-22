@@ -102,8 +102,8 @@ class LockWallSandboxTestCase(unittest.TestCase):
 
         self.assertEqual(
             len(lock_wall.TCB_ENGINE_SCRIPTS),
-            11,
-            "TCB_ENGINE_SCRIPTS must list exactly 11 scripts per spec",
+            20,
+            "TCB_ENGINE_SCRIPTS must list all 20 Framework engine scripts per spec",
         )
 
         for script_name in lock_wall.TCB_ENGINE_SCRIPTS:
