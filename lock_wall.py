@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 # Root Anchoring
 APPROVED_ROOT_DIR = Path(__file__).resolve().parent
 
-# 11 TCB Engine Scripts
+# 20 TCB Engine Scripts
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
@@ -29,7 +29,16 @@ TCB_ENGINE_SCRIPTS = [
     "sequence_engine.py",
     "watchdog.py",
     "project_wizard.py",
-    "lock_wall.py"
+    "lock_wall.py",
+    "pathfinder_server.py",
+    "setup_hooks.py",
+    "scorecard.py",
+    "telemetry.py",
+    "backup_engine.py",
+    "file_hygiene_engine.py",
+    "packet_verify.py",
+    "regr_watchdog.py",
+    "test_cp_review.py",
 ]
 
 # Win32 Reparse Point Flags
@@ -342,6 +351,11 @@ class LockWallEngine:
 
 if __name__ == "__main__":
     engine = LockWallEngine()
+    if len(sys.argv) > 1 and sys.argv[1] == "--seal":
+        data = engine.seal_lock_manifest()
+        print(f"[OK] LockWallEngine: Sealed manifest with {data['total_tcb_targets_count']} targets.")
+        sys.exit(0)
+
     is_valid, errs = engine.verify_lock_integrity()
     if is_valid:
         print("[OK] LockWallEngine: Fail-closed lock integrity verification PASSED.")
