@@ -16,6 +16,8 @@ tests/test_watchdog.py
 tests/test_sequence_engine.py
 tests/test_genesis.py
 tests/test_pathfinder.py
+pathfinder_server.py
+
 
 
 
