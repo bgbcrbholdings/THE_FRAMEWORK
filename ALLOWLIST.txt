@@ -2,6 +2,8 @@
 01_GOVERNANCE/PM_PLAYBOOK.md
 PHASE_0_RUNBOOK.md
 ALLOWLIST.txt
+.sequence/lock_manifest.json
+.sequence/boot_digest.txt
 verify.py
 sequence_server.py
 schemas.py
