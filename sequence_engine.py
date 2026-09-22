@@ -113,15 +113,33 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
 
     # 2. Canonicalization & containment check
     root_path = Path(os.path.realpath(str(root_dir_str))).resolve()
-    target_path = Path(os.path.realpath(decoded_path_str)).resolve()
+    if not os.path.isabs(decoded_path_str):
+        full_path_str = os.path.join(str(root_dir_str), decoded_path_str)
+    else:
+        full_path_str = decoded_path_str
+
+    # Check for reparse points / symlinks before and during canonicalization
+    full_abs_str = os.path.abspath(full_path_str)
+    full_real_str = os.path.realpath(full_path_str)
+    if os.path.lexists(full_path_str) and (
+        os.path.islink(full_path_str)
+        or os.path.islink(decoded_path_str)
+        or Path(full_path_str).is_symlink()
+        or Path(decoded_path_str).is_symlink()
+        or check_win32_reparse_point(Path(full_path_str))
+        or check_win32_reparse_point(Path(decoded_path_str))
+        or full_real_str != full_abs_str
+    ):
+        raise PermissionError(f"REPARSE POINT VIOLATION: Path '{full_path_str}' is a symlink or junction point.")
+
+    target_path = Path(full_real_str).resolve()
 
     try:
         target_path.relative_to(root_path)
     except ValueError:
         raise PermissionError(f"PATH TRAVERSAL VIOLATION: Path '{target_path}' escapes approved root '{root_path}'.")
 
-    # 3. Check for reparse points (symlinks/junctions)
-    if target_path.exists() and check_win32_reparse_point(target_path):
+    if target_path.exists() and (target_path.is_symlink() or check_win32_reparse_point(target_path)):
         raise PermissionError(f"REPARSE POINT VIOLATION: Path '{target_path}' is a Win32 symlink or junction point.")
 
     # Safe open file handle return
@@ -139,12 +157,13 @@ def apply_restrictive_dacl(file_path):
     if not file_path_obj.exists():
         return False
 
+    try:
+        os.chmod(file_path_obj, 0o600)
+    except Exception:
+        pass
+
     if os.name != "nt":
-        try:
-            os.chmod(file_path_obj, 0o600)
-            return True
-        except Exception:
-            return False
+        return True
 
     username = os.environ.get("USERNAME")
     if not username:
@@ -190,7 +209,7 @@ def verify_restrictive_dacl(file_path):
         output = res.stdout.lower()
         if username not in output:
             return False
-        if "everyone:(i)" in output or "everyone:(f)" in output or "builtin\\users" in output:
+        if "(i)" in output or "everyone" in output or "builtin\\users" in output:
             return False
         return True
     except Exception:
