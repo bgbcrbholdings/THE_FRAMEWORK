@@ -133,7 +133,7 @@ class LockWallEngine:
 
     def __init__(self, project_dir=APPROVED_ROOT_DIR):
         self.raw_project_dir = str(project_dir)
-        ok, res = canonicalize_and_validate_path(str(project_dir), str(APPROVED_ROOT_DIR))
+        ok, res = canonicalize_and_validate_path(str(project_dir), str(project_dir))
         if not ok:
             raise PermissionError(f"INVALID_PROJECT_DIR: {res}")
         self.project_dir = Path(res).resolve()
@@ -166,7 +166,7 @@ class LockWallEngine:
         val_path = Path(validated_path_str)
         if not val_path.exists():
             raise ValueError(f"FILE_NOT_FOUND: Target '{relative_script_path}' does not exist")
-        if not val_path.is_file() or check_win32_reparse_point(val_path):
+        if not val_path.is_file() or val_path.is_symlink() or check_win32_reparse_point(val_path):
             raise PermissionError(f"NON_REGULAR_FILE_OR_REPARSE: '{relative_script_path}' is invalid")
 
         hasher = hashlib.sha256()
@@ -225,7 +225,7 @@ class LockWallEngine:
                 errors.append(f"TCB_FILE_VALIDATION_FAILED: '{target_posix}': {msg_t}")
                 continue
 
-            if not Path(msg_t).is_file() or check_win32_reparse_point(Path(msg_t)):
+            if not Path(msg_t).is_file() or Path(msg_t).is_symlink() or check_win32_reparse_point(Path(msg_t)):
                 errors.append(f"NON_REGULAR_TCB_FILE: '{target_posix}' is symlinked, junctioned, or non-regular")
                 continue
 
