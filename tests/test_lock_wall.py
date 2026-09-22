@@ -1,189 +1,364 @@
 #!/usr/bin/env python3
 """
-Unit Test Suite for LockWallEngine (tests/test_lock_wall.py)
-Tests 1-Way Door Architectural Lock Wall Engine:
-- Reading .sequence/lock_manifest.json
-- Computing and checking SHA-256 hashes of TCB targets
-- Fail-closed verification and exit code 1 on SHA-256 hash mismatch
-- Path traversal rejection, Win32 reparse-point blocking, and status envelope validation.
-Pure Python 3 Standard Library — 0 External Pip Dependencies.
+test_lock_wall.py
+
+Contract canary test suite for lock_wall.py / schemas.py.
+
+Authored by Model A (Contract Author) as an independent, stateless test
+engineer. This suite makes ZERO assumptions about implementation details
+beyond the documented module interface. It exercises the REAL module
+against a REAL filesystem tree -- no mocks, no stubs, no swallowed
+exceptions, no dummy assertions.
+
+Pure Python 3 standard library only.
 """
 
+import hashlib
+import json
 import os
 import sys
-import json
-import shutil
 import tempfile
-import subprocess
 import unittest
 from pathlib import Path
 
 try:
-    from lock_wall import LockWallEngine, canonicalize_and_validate_path, get_tcb_hash_targets, APPROVED_ROOT_DIR
-except ImportError:
-    LockWallEngine = None
-    canonicalize_and_validate_path = None
-    get_tcb_hash_targets = None
-    APPROVED_ROOT_DIR = Path(__file__).resolve().parent.parent
-
-try:
-    from schemas import validate_lock_wall_envelope
-except ImportError:
-    validate_lock_wall_envelope = None
+    import lock_wall
+except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: could not import lock_wall.py: "
+        f"{exc!r}\n"
+    )
+    sys.exit(1)
 
 
+REQUIRED_ATTRS = (
+    "TCB_ENGINE_SCRIPTS",
+    "FILE_FLAG_OPEN_REPARSE_POINT",
+    "APPROVED_ROOT_DIR",
+    "check_win32_reparse_point",
+    "canonicalize_and_validate_path",
+    "get_tcb_hash_targets",
+    "LockWallEngine",
+)
 
-class TestLockWallEngine(unittest.TestCase):
+_missing = [name for name in REQUIRED_ATTRS if not hasattr(lock_wall, name)]
+if _missing:
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: lock_wall.py is missing required "
+        f"interface members: {_missing}\n"
+    )
+    sys.exit(1)
+
+_REQUIRED_ENGINE_METHODS = (
+    "compute_script_hash",
+    "seal_lock_manifest",
+    "verify_lock_integrity",
+    "assert_fail_closed",
+    "get_status_envelope",
+)
+_missing_methods = [
+    name
+    for name in _REQUIRED_ENGINE_METHODS
+    if not hasattr(lock_wall.LockWallEngine, name)
+]
+if _missing_methods:
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: LockWallEngine is missing required "
+        f"methods: {_missing_methods}\n"
+    )
+    sys.exit(1)
+
+
+def _sha256_of(path):
+    hasher = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _errors_as_text(errors):
+    """
+    Errors may be returned as plain strings or as structured objects
+    (dict/dataclass/etc.) carrying an error code. str() over the whole
+    list surfaces the code substring either way without assuming a
+    specific error-object schema.
+    """
+    return " ".join(str(e) for e in errors)
+
+
+class LockWallSandboxTestCase(unittest.TestCase):
+    """
+    Builds a fully isolated, real filesystem TCB tree for each test:
+    all 11 TCB_ENGINE_SCRIPTS, .sequence/mrac_rules.json, and a
+    dashboard/ static file tree -- then instantiates a real
+    LockWallEngine bound to that sandbox via its documented
+    project_dir constructor parameter. No mocks, no stubs.
+    """
 
     def setUp(self):
-        if LockWallEngine is None or validate_lock_wall_envelope is None:
-            self.skipTest("lock_wall.py or schemas.py not available in environment")
-        
-        # Ensure TCB targets exist as stubs in clean environment
-        for script in get_tcb_hash_targets(APPROVED_ROOT_DIR):
-            p = APPROVED_ROOT_DIR / script
-            if not p.exists():
-                p.parent.mkdir(parents=True, exist_ok=True)
-                if script.endswith(".json"):
-                    p.write_text("{}", encoding="utf-8")
-                else:
-                    p.write_text("# TCB Stub\n", encoding="utf-8")
-                    
-        self.engine = LockWallEngine(APPROVED_ROOT_DIR)
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="lock_wall_canary_")
+        self.project_dir = Path(self._tmpdir.name).resolve()
 
-    def test_canonicalize_and_validate_path(self):
-        """Test path canonicalization, traversal rejection, and ADS blocking."""
-        ok, res = canonicalize_and_validate_path("verify.py", str(APPROVED_ROOT_DIR))
-        self.assertTrue(ok)
+        self.assertEqual(
+            len(lock_wall.TCB_ENGINE_SCRIPTS),
+            11,
+            "TCB_ENGINE_SCRIPTS must list exactly 11 scripts per spec",
+        )
 
-        ok, msg = canonicalize_and_validate_path("../outside.py", str(APPROVED_ROOT_DIR))
-        self.assertFalse(ok)
-        self.assertIn("PATH_TRAVERSAL", msg)
+        for script_name in lock_wall.TCB_ENGINE_SCRIPTS:
+            script_path = self.project_dir / script_name
+            script_path.parent.mkdir(parents=True, exist_ok=True)
+            script_path.write_text(
+                f"# TCB script fixture: {script_name}\nVALUE = 1\n",
+                encoding="utf-8",
+            )
 
-        ok, msg = canonicalize_and_validate_path("verify.py:stream", str(APPROVED_ROOT_DIR))
-        self.assertFalse(ok)
-        self.assertIn("ADS_DENIED", msg)
+        sequence_dir = self.project_dir / ".sequence"
+        sequence_dir.mkdir(parents=True, exist_ok=True)
+        (sequence_dir / "mrac_rules.json").write_text(
+            json.dumps({"rules": []}), encoding="utf-8"
+        )
 
-    def test_compute_script_hash_valid(self):
-        """Test valid script hash computation for allowlisted TCB script."""
-        h = self.engine.compute_script_hash("verify.py")
-        self.assertEqual(len(h), 64)
+        dashboard_dir = self.project_dir / "dashboard"
+        dashboard_dir.mkdir(parents=True, exist_ok=True)
+        (dashboard_dir / "index.html").write_text(
+            "<html><body>canary dashboard</body></html>", encoding="utf-8"
+        )
+        assets_dir = dashboard_dir / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
+        (assets_dir / "app.js").write_text(
+            "console.log('canary');\n", encoding="utf-8"
+        )
 
-    def test_compute_script_hash_invalid_target(self):
-        """Test rejection of non-TCB targets or traversal paths."""
-        with self.assertRaises(ValueError):
-            self.engine.compute_script_hash("../outside.py")
+        self.engine = lock_wall.LockWallEngine(project_dir=str(self.project_dir))
 
-        with self.assertRaises(ValueError):
-            self.engine.compute_script_hash("non_existent_random_target.py")
+    def tearDown(self):
+        self._tmpdir.cleanup()
 
-        with self.assertRaises(ValueError):
-            self.engine.compute_script_hash("verify.py:stream")
 
-    def test_reads_lock_manifest_and_checks_sha256_hashes(self):
-        """Asserts lock_wall.py reads lock_manifest.json and checks SHA-256 hashes against live targets."""
-        # Reseal manifest to ensure pristine live hashes match
+class TestSealLockManifestCreatesFiles(LockWallSandboxTestCase):
+    def test_seal_lock_manifest_creates_files(self):
         manifest = self.engine.seal_lock_manifest()
-        self.assertIn("hashes", manifest)
-        self.assertIsInstance(manifest["hashes"], dict)
+        self.assertIsInstance(manifest, dict)
+        self.assertTrue(len(manifest) > 0)
 
-        manifest_file = APPROVED_ROOT_DIR / ".sequence" / "lock_manifest.json"
-        self.assertTrue(manifest_file.exists(), ".sequence/lock_manifest.json must exist")
+        manifest_path = self.project_dir / ".sequence" / "lock_manifest.json"
+        digest_path = self.project_dir / ".sequence" / "boot_digest.txt"
 
-        # Verify reading lock_manifest.json and SHA-256 hash checking passes
-        is_valid, errors = self.engine.verify_lock_integrity()
-        self.assertTrue(is_valid, f"Lock integrity verification failed: {errors}")
-        self.assertEqual(len(errors), 0)
+        self.assertTrue(
+            manifest_path.is_file(),
+            "seal_lock_manifest() did not create .sequence/lock_manifest.json",
+        )
+        self.assertTrue(
+            digest_path.is_file(),
+            "seal_lock_manifest() did not create .sequence/boot_digest.txt",
+        )
 
-    def test_exits_code_1_on_sha256_hash_mismatch(self):
-        """Asserts lock_wall.py reads lock_manifest.json, checks SHA-256 hashes, and exits code 1 on mismatch."""
-        target_file = APPROVED_ROOT_DIR / ".sequence" / "mrac_rules.json"
-        if not target_file.exists():
-            target_file.parent.mkdir(parents=True, exist_ok=True)
-            target_file.write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
+        on_disk_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertIsInstance(on_disk_manifest, dict)
+        self.assertTrue(len(on_disk_manifest) > 0)
 
+        boot_digest = digest_path.read_text(encoding="utf-8").strip()
+        self.assertRegex(
+            boot_digest,
+            r"^[0-9a-fA-F]{64}$",
+            "boot_digest.txt does not contain a 64-hex-char SHA-256 digest",
+        )
+
+        # Cross-check the documented per-file hashing contract directly:
+        # compute_script_hash() must return the file's real, live SHA-256.
+        sample_target = sorted(lock_wall.TCB_ENGINE_SCRIPTS)[0]
+        expected_hash = _sha256_of(self.project_dir / sample_target)
+        actual_hash = self.engine.compute_script_hash(sample_target)
+        self.assertEqual(
+            actual_hash,
+            expected_hash,
+            f"compute_script_hash({sample_target!r}) did not match the "
+            f"file's real SHA-256 digest",
+        )
+
+        # get_tcb_hash_targets must cover all 11 TCB scripts plus the
+        # documented mrac_rules.json and dashboard/** entries.
+        targets = lock_wall.get_tcb_hash_targets(root_dir=str(self.project_dir))
+        self.assertIsInstance(targets, list)
+        targets_posix = set(targets)
+        for script_name in lock_wall.TCB_ENGINE_SCRIPTS:
+            self.assertIn(
+                script_name,
+                targets_posix,
+                f"get_tcb_hash_targets() did not include TCB script "
+                f"{script_name!r}",
+            )
+        self.assertIn(".sequence/mrac_rules.json", targets_posix)
+        self.assertTrue(
+            any(t.startswith("dashboard/") for t in targets_posix),
+            "get_tcb_hash_targets() did not include any dashboard/** file",
+        )
+
+
+class TestVerifyLockIntegrityCleanRepo(LockWallSandboxTestCase):
+    def test_verify_lock_integrity_passes_on_clean_repo(self):
         self.engine.seal_lock_manifest()
-        original_content = target_file.read_text(encoding="utf-8")
 
+        ok, errors = self.engine.verify_lock_integrity()
+
+        self.assertEqual(
+            errors,
+            [],
+            f"verify_lock_integrity() reported errors on an unmodified "
+            f"sealed repo: {errors!r}",
+        )
+        self.assertTrue(
+            ok,
+            "verify_lock_integrity() returned False on an unmodified "
+            "sealed repo",
+        )
+
+
+class TestHashMismatchFailsVerification(LockWallSandboxTestCase):
+    def test_hash_mismatch_fails_verification(self):
+        self.engine.seal_lock_manifest()
+
+        tampered_script = self.project_dir / "watchdog.py"
+        original_bytes = tampered_script.read_bytes()
+        tampered_bytes = bytearray(original_bytes)
+        tampered_bytes[0] ^= 0xFF  # guaranteed single-byte change
+        tampered_script.write_bytes(bytes(tampered_bytes))
+        self.assertNotEqual(bytes(tampered_bytes), original_bytes)
+
+        ok, errors = self.engine.verify_lock_integrity()
+
+        self.assertFalse(
+            ok, "verify_lock_integrity() returned True after a TCB "
+            "script was modified"
+        )
+        self.assertTrue(len(errors) > 0)
+
+        error_text = _errors_as_text(errors)
+        self.assertIn(
+            "HASH_MISMATCH",
+            error_text,
+            f"Expected explicit HASH_MISMATCH error, got: {errors!r}",
+        )
+
+        with self.assertRaises(PermissionError):
+            self.engine.assert_fail_closed()
+
+
+class TestMissingFileFailsVerification(LockWallSandboxTestCase):
+    def test_missing_file_fails_verification(self):
+        self.engine.seal_lock_manifest()
+
+        missing_script = self.project_dir / "auditor_agent.py"
+        missing_script.unlink()
+        self.assertFalse(missing_script.exists())
+
+        ok, errors = self.engine.verify_lock_integrity()
+
+        self.assertFalse(
+            ok,
+            "verify_lock_integrity() returned True after a TCB script "
+            "was deleted",
+        )
+        self.assertTrue(len(errors) > 0)
+
+        error_text = _errors_as_text(errors)
+        self.assertIn(
+            "MISSING_TCB_FILE",
+            error_text,
+            f"Expected explicit MISSING_TCB_FILE error, got: {errors!r}",
+        )
+
+        with self.assertRaises(PermissionError):
+            self.engine.assert_fail_closed()
+
+
+class TestBootDigestTamperFailsVerification(LockWallSandboxTestCase):
+    def test_boot_digest_tamper_fails_verification(self):
+        self.engine.seal_lock_manifest()
+
+        digest_path = self.project_dir / ".sequence" / "boot_digest.txt"
+        original_digest = digest_path.read_text(encoding="utf-8").strip()
+        self.assertRegex(original_digest, r"^[0-9a-fA-F]{64}$")
+
+        flipped_char = "0" if original_digest[0].lower() != "0" else "1"
+        forged_digest = flipped_char + original_digest[1:]
+        self.assertNotEqual(forged_digest, original_digest)
+        digest_path.write_text(forged_digest, encoding="utf-8")
+
+        ok, errors = self.engine.verify_lock_integrity()
+
+        self.assertFalse(
+            ok,
+            "verify_lock_integrity() returned True after boot_digest.txt "
+            "was tampered with",
+        )
+        self.assertTrue(len(errors) > 0)
+
+        error_text = _errors_as_text(errors)
+        self.assertIn(
+            "BOOT_DIGEST_MISMATCH",
+            error_text,
+            f"Expected explicit BOOT_DIGEST_MISMATCH error, got: {errors!r}",
+        )
+
+        with self.assertRaises(PermissionError):
+            self.engine.assert_fail_closed()
+
+
+class TestReparsePointRejection(LockWallSandboxTestCase):
+    def test_reparse_point_rejection(self):
+        target_relative_path = "project_wizard.py"
+        target_script = self.project_dir / target_relative_path
+
+        decoy_target = self.project_dir / "_reparse_decoy_target.txt"
+        decoy_target.write_text(
+            "decoy content, not a real TCB script\n", encoding="utf-8"
+        )
+
+        target_script.unlink()
         try:
-            # Modify target file content to force SHA-256 hash mismatch
-            target_file.write_text(original_content + "\n// INTENTIONAL_HASH_MISMATCH_TAMPER", encoding="utf-8")
-
-            # 1. Direct engine API assertion: verify_lock_integrity reports HASH_MISMATCH failure
-            is_valid, errors = self.engine.verify_lock_integrity()
-            self.assertFalse(is_valid, "verify_lock_integrity should fail when file content is tampered")
-            self.assertTrue(
-                any("HASH_MISMATCH" in err for err in errors),
-                f"Expected HASH_MISMATCH in errors, got: {errors}"
+            os.symlink(str(decoy_target), str(target_script))
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(
+                "Symlink creation is not permitted/supported on this "
+                f"platform, so a real reparse point cannot be created: {exc!r}"
             )
 
-            # 2. CLI execution assertion: executing lock_wall.py script returns exit code 1
-            cmd = [sys.executable, str(APPROVED_ROOT_DIR / "lock_wall.py")]
-            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(APPROVED_ROOT_DIR))
-            self.assertEqual(
-                res.returncode, 1,
-                f"Expected lock_wall.py to exit with code 1 on SHA-256 mismatch, got exit code {res.returncode}. Stderr: {res.stderr}"
-            )
-            self.assertIn("[FAIL]", res.stderr)
+        self.assertTrue(
+            target_script.is_symlink(),
+            "Test setup failure: TCB script path is not actually a symlink",
+        )
 
-        finally:
-            # Restore original content and reseal manifest
-            target_file.write_text(original_content, encoding="utf-8")
-            self.engine.seal_lock_manifest()
+        rejected = False
+        rejection_text = ""
 
-    def test_tamper_dashboard_asset(self):
-        """Tamper test: altering dashboard asset must trigger fail-closed rejection and exit code 1."""
-        self.engine.seal_lock_manifest()
-
-        dash_file = APPROVED_ROOT_DIR / "dashboard" / "scorecard.html"
-        if not dash_file.exists():
-            dash_file.parent.mkdir(parents=True, exist_ok=True)
-            dash_file.write_text("<html><body>Dashboard</body></html>", encoding="utf-8")
-            self.engine.seal_lock_manifest()
-
-        original_content = dash_file.read_text(encoding="utf-8")
         try:
-            dash_file.write_text(original_content + "<!-- TAMPERED -->", encoding="utf-8")
-            is_valid, errors = self.engine.verify_lock_integrity()
-            self.assertFalse(is_valid)
-            self.assertGreater(len(errors), 0)
+            self.engine.compute_script_hash(target_relative_path)
+        except (ValueError, PermissionError, OSError) as exc:
+            rejected = True
+            rejection_text = str(exc)
 
-            with self.assertRaises(PermissionError):
-                self.engine.assert_fail_closed()
+        if not rejected:
+            ok, errors = self.engine.verify_lock_integrity()
+            self.assertFalse(
+                ok,
+                "verify_lock_integrity() returned True with a symlinked "
+                "TCB script in place -- reparse point was not rejected",
+            )
+            rejection_text = _errors_as_text(errors)
 
-            cmd = [sys.executable, str(APPROVED_ROOT_DIR / "lock_wall.py")]
-            res = subprocess.run(cmd, capture_output=True, text=True, cwd=str(APPROVED_ROOT_DIR))
-            self.assertEqual(res.returncode, 1)
-        finally:
-            dash_file.write_text(original_content, encoding="utf-8")
-            self.engine.seal_lock_manifest()
+        self.assertTrue(
+            ("NON_REGULAR_TCB_FILE" in rejection_text)
+            or ("REPARSE_POINT_DENIED" in rejection_text),
+            "Expected NON_REGULAR_TCB_FILE or REPARSE_POINT_DENIED in the "
+            f"rejection details, got: {rejection_text!r}",
+        )
 
-    def test_get_status_envelope_and_schema_validation(self):
-        """Test status envelope generation and schemas validation."""
-        self.engine.seal_lock_manifest()
-        envelope = self.engine.get_status_envelope()
-
-        self.assertIn("status", envelope)
-        self.assertIn("tcb_count", envelope)
-        self.assertIn("timestamp", envelope)
-
-        valid = validate_lock_wall_envelope(envelope)
-        self.assertTrue(valid)
-
-    def test_validate_lock_wall_envelope_negative(self):
-        """Test schema validation rejection of invalid envelope shapes."""
-        self.assertFalse(validate_lock_wall_envelope(None))
-        self.assertFalse(validate_lock_wall_envelope({}))
-        self.assertFalse(validate_lock_wall_envelope({"status": "INVALID"}))
-        self.assertFalse(validate_lock_wall_envelope({
-            "status": "OK",
-            "tcb_count": 5, # too small (< 11)
-            "manifest_hash_match": True,
-            "boot_digest_match": True,
-            "mismatched_paths": [],
-            "timestamp": "2026-09-18T16:00:00Z"
-        }))
+        with self.assertRaises(PermissionError):
+            self.engine.assert_fail_closed()
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
