@@ -13,6 +13,7 @@ import os
 import re
 import json
 import shutil
+import hashlib
 import argparse
 from pathlib import Path
 
@@ -25,6 +26,52 @@ from sequence_engine import validate_and_open_path, check_win32_reparse_point
 from schemas import GenesisProjectSpec
 
 RESERVED_DEVICE_PATTERN = r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$"
+
+
+def generate_lock_manifest(root_dir):
+    """
+    Computes live SHA-256 hashes for preseeded TCB scripts and writes
+    .sequence/lock_manifest.json and .sequence/boot_digest.txt.
+    """
+    sec_dir = Path(root_dir) / ".sequence"
+    sec_dir.mkdir(parents=True, exist_ok=True)
+
+    tcb_scripts = [
+        "verify.py", "sequence_server.py", "schemas.py", "auditor_agent.py",
+        "build_packet.py", "parse_reviews.py", "agent_dispatcher.py",
+        "sequence_engine.py", "watchdog.py", "project_wizard.py", "lock_wall.py"
+    ]
+
+    manifest_hashes = {}
+    for script_name in tcb_scripts:
+        script_path = Path(root_dir) / script_name
+        if script_path.exists():
+            hasher = hashlib.sha256()
+            with open(script_path, "rb") as f:
+                while chunk := f.read(65536):
+                    hasher.update(chunk)
+            manifest_hashes[script_name] = hasher.hexdigest()
+        else:
+            manifest_hashes[script_name] = "FILE_MISSING_NOT_STUBBED"
+
+    manifest_data = {
+        "manifest_version": "1.0.0",
+        "slice_id": "slice-004-sandboxed-sandwich",
+        "status": "LOCKED",
+        "tcb_scripts_count": len(tcb_scripts),
+        "hashes": manifest_hashes
+    }
+
+    manifest_file = sec_dir / "lock_manifest.json"
+    manifest_file.write_text(json.dumps(manifest_data, indent=2), encoding="utf-8")
+
+    digest_input = json.dumps(manifest_hashes, sort_keys=True)
+    boot_digest = hashlib.sha256(digest_input.encode("utf-8")).hexdigest()
+
+    boot_digest_file = sec_dir / "boot_digest.txt"
+    boot_digest_file.write_text(f"{boot_digest}\n", encoding="utf-8")
+
+    return manifest_data, boot_digest
 
 
 def create_project(project_name, parent_path_arg="C:\\Linkstream", force=False):
@@ -195,7 +242,6 @@ jobs:
     conn.commit()
     conn.close()
 
-    from verify import generate_lock_manifest
     generate_lock_manifest(target_dir)
 
     # 8. Copy 0-Pip Test Runner & Starter Unit Test into tests/
