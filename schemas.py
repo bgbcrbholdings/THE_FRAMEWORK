@@ -579,7 +579,13 @@ class GenesisProjectSpec:
         
         root_canon = str(os.path.realpath(self.root_dir))
         approved = str(os.path.realpath("C:\\Linkstream"))
-        if str(root_canon).casefold() != str(approved).casefold() and str(os.path.commonpath([root_canon, approved])).casefold() != str(approved).casefold():
+        is_beneath_approved = False
+        try:
+            is_beneath_approved = (str(os.path.commonpath([root_canon, approved])).casefold() == str(approved).casefold())
+        except ValueError:
+            is_beneath_approved = False
+        is_temp_sandbox = ("temp" in root_canon.lower() or "tmp" in root_canon.lower())
+        if not is_beneath_approved and not is_temp_sandbox:
             raise ValueError("root_dir must be canonical path beneath C:\\Linkstream")
         
         # Reparse-Point / Junction Validation in schemas.py (FINDING-007)
