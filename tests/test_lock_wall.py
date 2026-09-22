@@ -309,6 +309,7 @@ class TestBootDigestTamperFailsVerification(LockWallSandboxTestCase):
 
 class TestReparsePointRejection(LockWallSandboxTestCase):
     def test_reparse_point_rejection(self):
+        self.engine.seal_lock_manifest()
         target_relative_path = "project_wizard.py"
         target_script = self.project_dir / target_relative_path
 
