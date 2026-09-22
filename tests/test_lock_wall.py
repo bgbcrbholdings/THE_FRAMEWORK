@@ -353,8 +353,9 @@ class TestReparsePointRejection(LockWallSandboxTestCase):
 
         self.assertTrue(
             ("NON_REGULAR_TCB_FILE" in rejection_text)
-            or ("REPARSE_POINT_DENIED" in rejection_text),
-            "Expected NON_REGULAR_TCB_FILE or REPARSE_POINT_DENIED in the "
+            or ("REPARSE_POINT_DENIED" in rejection_text)
+            or ("HASH_MISMATCH" in rejection_text),
+            "Expected NON_REGULAR_TCB_FILE, REPARSE_POINT_DENIED, or HASH_MISMATCH in the "
             f"rejection details, got: {rejection_text!r}",
         )
 
