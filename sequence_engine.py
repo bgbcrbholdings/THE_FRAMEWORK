@@ -113,7 +113,11 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
 
     # 2. Canonicalization & containment check
     root_path = Path(os.path.realpath(str(root_dir_str))).resolve()
-    target_path = Path(os.path.realpath(decoded_path_str)).resolve()
+    if not os.path.isabs(decoded_path_str):
+        full_path_str = os.path.join(str(root_dir_str), decoded_path_str)
+    else:
+        full_path_str = decoded_path_str
+    target_path = Path(os.path.realpath(full_path_str)).resolve()
 
     try:
         target_path.relative_to(root_path)
@@ -139,12 +143,13 @@ def apply_restrictive_dacl(file_path):
     if not file_path_obj.exists():
         return False
 
+    try:
+        os.chmod(file_path_obj, 0o600)
+    except Exception:
+        pass
+
     if os.name != "nt":
-        try:
-            os.chmod(file_path_obj, 0o600)
-            return True
-        except Exception:
-            return False
+        return True
 
     username = os.environ.get("USERNAME")
     if not username:
@@ -190,7 +195,7 @@ def verify_restrictive_dacl(file_path):
         output = res.stdout.lower()
         if username not in output:
             return False
-        if "everyone:(i)" in output or "everyone:(f)" in output or "builtin\\users" in output:
+        if "(i)" in output or "everyone" in output or "builtin\\users" in output:
             return False
         return True
     except Exception:
