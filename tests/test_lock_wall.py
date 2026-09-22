@@ -132,6 +132,7 @@ class LockWallSandboxTestCase(unittest.TestCase):
         )
 
         self.engine = lock_wall.LockWallEngine(project_dir=str(self.project_dir))
+        self.engine.seal_lock_manifest()
 
     def tearDown(self):
         self._tmpdir.cleanup()
