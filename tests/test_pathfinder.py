@@ -109,7 +109,7 @@ class PathfinderHealthLiveServerTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         if IMPORT_ERROR or pathfinder_server is None:
-            raise RuntimeError(f"CONTRACT CANARY FAILURE: {IMPORT_ERROR}")
+            return
 
         cls._tmpdir = tempfile.TemporaryDirectory(prefix="pathfinder_canary_")
         cls.work_dir = cls._tmpdir.name
@@ -158,13 +158,16 @@ class PathfinderHealthLiveServerTestCase(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.httpd.shutdown()
-        cls.httpd.server_close()
-        cls.server_thread.join(timeout=5)
-        os.chdir(cls._original_cwd)
-        cls._tmpdir.cleanup()
+        if hasattr(cls, "httpd"):
+            cls.httpd.shutdown()
+            cls.httpd.server_close()
+            cls.server_thread.join(timeout=5)
+            os.chdir(cls._original_cwd)
+            cls._tmpdir.cleanup()
 
     def setUp(self):
+        if IMPORT_ERROR or pathfinder_server is None:
+            self.fail(f"CONTRACT CANARY FAILURE: {IMPORT_ERROR}")
         # Every test starts with a clean slate: no .sequence directory.
         if os.path.exists(self.state_db_path):
             os.remove(self.state_db_path)
