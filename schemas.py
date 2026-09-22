@@ -542,6 +542,10 @@ from typing import Literal
 
 EXPECTED_CREATED_DIRS = sorted(["01_GOVERNANCE", "02_BACKLOG", "03_INCUBATOR", "04_REVIEWS", ".sequence", "tests", ".github"])
 EXPECTED_PRESEEDED_TEMPLATES = sorted([
+    "ALLOWLIST.txt",
+    "README.md",
+    "01_GOVERNANCE/BOOTSTRAP.md",
+    "01_GOVERNANCE/FORBIDDEN.yml",
     "01_GOVERNANCE/PROBLEM.md",
     "01_GOVERNANCE/NON_GOALS.md",
     "01_GOVERNANCE/ARCHITECTURE.md",

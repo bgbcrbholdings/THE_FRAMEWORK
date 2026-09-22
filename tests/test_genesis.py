@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Contract Test Suite for Micro-Slice 1.5 — Project Genesis Wizard (tests/test_genesis.py)
 Defines contract specifications for project_wizard.py:
 1. Rejection of invalid project names, OS reserved device identifiers (CON, PRN, AUX, NUL), and reserved engine names.
@@ -58,7 +58,7 @@ class TestProjectWizardContract(unittest.TestCase):
                     project_wizard.create_project(bad_name)
 
     def test_02_parent_path_containment_rejection(self):
-        """2. Asserts parent_path argument escaping C:\Linkstream is rejected with ValueError."""
+        r"""2. Asserts parent_path argument escaping C:\Linkstream is rejected with ValueError."""
         if not hasattr(project_wizard, "create_project"):
             self.fail("project_wizard.create_project is missing")
 
