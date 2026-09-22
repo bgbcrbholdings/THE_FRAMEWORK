@@ -118,11 +118,21 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
     else:
         full_path_str = decoded_path_str
 
-    raw_path_obj = Path(full_path_str)
-    if raw_path_obj.is_symlink() or check_win32_reparse_point(raw_path_obj):
-        raise PermissionError(f"REPARSE POINT VIOLATION: Path '{raw_path_obj}' is a symlink or Win32 junction point.")
+    # Check for reparse points / symlinks before and during canonicalization
+    full_abs_str = os.path.abspath(full_path_str)
+    full_real_str = os.path.realpath(full_path_str)
+    if os.path.lexists(full_path_str) and (
+        os.path.islink(full_path_str)
+        or os.path.islink(decoded_path_str)
+        or Path(full_path_str).is_symlink()
+        or Path(decoded_path_str).is_symlink()
+        or check_win32_reparse_point(Path(full_path_str))
+        or check_win32_reparse_point(Path(decoded_path_str))
+        or full_real_str != full_abs_str
+    ):
+        raise PermissionError(f"REPARSE POINT VIOLATION: Path '{full_path_str}' is a symlink or junction point.")
 
-    target_path = Path(os.path.realpath(full_path_str)).resolve()
+    target_path = Path(full_real_str).resolve()
 
     try:
         target_path.relative_to(root_path)
