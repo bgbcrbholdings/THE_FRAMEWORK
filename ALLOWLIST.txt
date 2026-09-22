@@ -14,6 +14,7 @@ tests/test_lock_wall.py
 tests/test_watchdog.py
 tests/test_sequence_engine.py
 tests/test_genesis.py
+01_GOVERNANCE/CONSTITUTION.md
 
 
 
