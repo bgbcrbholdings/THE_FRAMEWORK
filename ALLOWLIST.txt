@@ -1,4 +1,5 @@
 01_GOVERNANCE/CONSTITUTION.md
+01_GOVERNANCE/PM_PLAYBOOK.md
 PHASE_0_RUNBOOK.md
 ALLOWLIST.txt
 sequence_server.py
@@ -14,7 +15,7 @@ tests/test_lock_wall.py
 tests/test_watchdog.py
 tests/test_sequence_engine.py
 tests/test_genesis.py
-01_GOVERNANCE/CONSTITUTION.md
+
 
 
 
