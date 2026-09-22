@@ -2,6 +2,8 @@
 01_GOVERNANCE/PM_PLAYBOOK.md
 PHASE_0_RUNBOOK.md
 ALLOWLIST.txt
+README.md
+02_BACKLOG/AGILE_SLICES.md
 .sequence/lock_manifest.json
 .sequence/boot_digest.txt
 verify.py
