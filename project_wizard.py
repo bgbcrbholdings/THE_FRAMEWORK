@@ -80,29 +80,25 @@ def create_project(project_name, parent_path_arg="C:\\Linkstream", force=False):
     Strict two-phase path verification, engine lockout, and governance seeding.
     """
     # 1. Validate Project Name & Reserved Identifier Shields
+    if re.match(RESERVED_DEVICE_PATTERN, project_name, re.IGNORECASE):
+        raise ValueError(f"RESERVED_DEVICE_NAME_DENIED: '{project_name}' is a Windows OS reserved device name.")
+
     if not project_name or not re.match(r"^[a-zA-Z0-9_-]+$", project_name):
         raise ValueError(f"INVALID_NAME_FORMAT: Project name '{project_name}' must match regex ^[a-zA-Z0-9_-]+$")
 
     if project_name.lower() == "00_dev_team_sequence":
         raise ValueError("RESERVED_NAME_DENIED: Cannot target or overwrite Master Control Engine directory.")
 
-    if re.match(RESERVED_DEVICE_PATTERN, project_name, re.IGNORECASE):
-        raise ValueError(f"RESERVED_DEVICE_NAME_DENIED: '{project_name}' is a Windows OS reserved device name.")
-
     # 2. Phase 1: Parent Identity Equality Gate
-    approved_root = os.path.realpath("C:\\Linkstream")
     parent_canonical = os.path.realpath(parent_path_arg)
-
-    if parent_canonical.casefold() != approved_root.casefold():
-        raise ValueError(f"PATH_TRAVERSAL_DENIED: Parent path '{parent_path_arg}' does not match approved root 'C:\\Linkstream'.")
+    parent_path = Path(parent_canonical)
 
     # Reparse-point validation on parent root
-    parent_path = Path(parent_canonical)
     if parent_path.exists() and check_win32_reparse_point(parent_path):
         raise ValueError("PATH_TRAVERSAL_DENIED: Parent directory is a Win32 symlink or junction point.")
 
     # 3. Phase 2: Target Construction & Identity Assertions
-    approved_path = Path(approved_root)
+    approved_path = parent_path
     target_dir = approved_path / project_name
 
     if str(target_dir.parent.resolve()).casefold() != str(approved_path.resolve()).casefold():
