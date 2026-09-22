@@ -15,6 +15,7 @@ import hmac
 import ctypes
 import urllib.parse
 import subprocess
+import re
 from pathlib import Path
 from datetime import datetime
 
@@ -105,10 +106,8 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
     if ".." in raw_str.split("/"):
         raise PermissionError(f"PATH TRAVERSAL VIOLATION: Path '{path_str}' contains '..' path components.")
 
-    # Strip Windows drive letter before checking ADS ':'
-    check_str = raw_str
-    if len(check_str) >= 2 and check_str[1] == ":":
-        check_str = check_str[2:]
+    # Strip Windows drive letters (e.g. C: or /C:) before checking ADS ':'
+    check_str = re.sub(r'(^|[/\\\\])[a-zA-Z]:(?=[/\\\\]|$)', r'\1', raw_str)
     if ":" in check_str:
         raise PermissionError(f"ADS VIOLATION: Path '{path_str}' contains alternate data stream.")
 
