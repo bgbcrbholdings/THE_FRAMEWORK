@@ -1,3 +1,5 @@
+01_GOVERNANCE/CONSTITUTION.md
+PHASE_0_RUNBOOK.md
 ALLOWLIST.txt
 sequence_server.py
 lock_wall.py
