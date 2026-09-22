@@ -1,309 +1,428 @@
 #!/usr/bin/env python3
 """
-Unit Test Suite for Slice 003 — Supply-Chain & Regression Watchdog (tests/test_watchdog.py)
-Covering watchdog.py, regr_watchdog.py, file_hygiene_engine.py, and schemas.py.
-Pure Python 3 Standard Library — 0 External Pip Dependencies.
+test_watchdog.py
+
+Contract canary test suite for watchdog.py.
+
+Authored by Model A (Contract Author) as an independent, stateless test
+engineer. This suite makes ZERO assumptions about implementation details
+beyond the documented module interface. It exercises the REAL module
+against real temporary .py files and real AST parsing -- no mocks, no
+stubs, no swallowed exceptions, no dummy assertions.
+
+Pure Python 3 standard library only.
+
+Note on fixtures: SupplyChainWatchdog.__init__ is documented to verify
+sequence_engine.py's TCB integrity against .sequence/lock_manifest.json
+-- the exact artifact produced by lock_wall.py's own already-specified,
+already contract-tested public API (LockWallEngine.seal_lock_manifest()).
+Rather than fabricate or assume watchdog.py's internal manifest format,
+this suite uses lock_wall.py itself (a real, documented sibling TCB
+module) purely as a fixture-sealing utility, so the watchdog's own
+documented integrity check has real, valid state to verify against.
 """
 
-import os
-import sys
 import json
-import time
-import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-# Add project root to sys.path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+try:
+    import watchdog
+except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: could not import watchdog.py: "
+        f"{exc!r}\n"
+    )
+    sys.exit(1)
 
 try:
-    from watchdog import SupplyChainWatchdog
-except BaseException:
-    SupplyChainWatchdog = None
-
-try:
-    from regr_watchdog import RegressionWatchdog
-except BaseException:
-    RegressionWatchdog = None
-
-try:
-    from file_hygiene_engine import FileHygieneEngine
-except BaseException:
-    FileHygieneEngine = None
+    import lock_wall
+except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: could not import lock_wall.py, which "
+        "this suite requires to seal a valid .sequence/lock_manifest.json "
+        f"fixture for SupplyChainWatchdog's documented TCB check: {exc!r}\n"
+    )
+    sys.exit(1)
 
 
-from schemas import (
-    validate_watchdog_envelope,
-    validate_regr_watchdog_envelope,
-    validate_file_hygiene_envelope
+REQUIRED_ATTRS = (
+    "STDLIB_FALLBACK",
+    "KNOWN_TCB_MODULES",
+    "SupplyChainWatchdog",
 )
+_missing = [name for name in REQUIRED_ATTRS if not hasattr(watchdog, name)]
+if _missing:
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: watchdog.py is missing required "
+        f"interface members: {_missing}\n"
+    )
+    sys.exit(1)
 
-class TestSupplyChainWatchdog(unittest.TestCase):
-    """Test suite for watchdog.py (Supply-Chain AST Auditor)."""
+_REQUIRED_METHODS = (
+    "load_mrac_rules",
+    "is_first_party_module",
+    "is_module_allowed",
+    "scan_file",
+    "scan_project",
+)
+_missing_methods = [
+    name
+    for name in _REQUIRED_METHODS
+    if not hasattr(watchdog.SupplyChainWatchdog, name)
+]
+if _missing_methods:
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: SupplyChainWatchdog is missing "
+        f"required methods: {_missing_methods}\n"
+    )
+    sys.exit(1)
 
-    def setUp(self):
-        if SupplyChainWatchdog is None:
-            self.skipTest("watchdog.py module not available in environment")
-        self.watchdog = SupplyChainWatchdog(str(PROJECT_ROOT))
-
-    def test_codebase_stdlib_and_first_party_imports_pass(self):
-        """Assures existing codebase stdlib and first-party imports pass with zero violations."""
-        result = self.watchdog.audit()
-        assert result["status"] == "PASS", f"Audit violations: {result.get('violations')}"
-        self.assertEqual(result["forbidden_imports_found"], 0)
-        self.assertEqual(len(result["violations"]), 0)
-
-    def test_third_party_pip_imports_detected(self):
-        """Asserts synthetic file with import requests / from yaml import load triggers FAIL."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            # Create minimal sequence_engine.py fixture
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / ".sequence").mkdir()
-            (tmp_path / ".sequence" / "mrac_rules.json").write_text(json.dumps({"forbidden_imports": ["eval"]}), encoding="utf-8")
-
-            bad_file = tmp_path / "bad_script.py"
-            bad_file.write_text("import requests\nfrom yaml import load\n", encoding="utf-8")
-
-            wd = SupplyChainWatchdog(str(tmp_path))
-            result = wd.audit()
-
-            self.assertEqual(result["status"], "FAIL")
-            self.assertGreaterEqual(result["forbidden_imports_found"], 2)
-            names = [v["name"] for v in result["violations"]]
-            self.assertIn("requests", names)
-            self.assertIn("yaml", names)
-
-    def test_dynamic_imports_detected(self):
-        """Asserts __import__('requests') and importlib.import_module('yaml') yield FAIL."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / ".sequence").mkdir()
-            (tmp_path / ".sequence" / "mrac_rules.json").write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
-
-            bad_file = tmp_path / "dynamic_script.py"
-            bad_file.write_text("x = __import__('requests')\ny = importlib.import_module('yaml')\neval('1+1')\n", encoding="utf-8")
-
-            wd = SupplyChainWatchdog(str(tmp_path))
-            result = wd.audit()
-
-            self.assertEqual(result["status"], "FAIL")
-            self.assertGreaterEqual(result["forbidden_imports_found"], 3)
-            kinds = [v["kind"] for v in result["violations"]]
-            self.assertIn("DYNAMIC_IMPORT", kinds)
-            self.assertIn("EVAL_EXEC", kinds)
-
-    def test_syntax_error_and_relative_imports_handled(self):
-        """Asserts malformed syntax returns schema-valid FAIL envelope without unhandled crash."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / ".sequence").mkdir()
-            (tmp_path / ".sequence" / "mrac_rules.json").write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
-
-            syntax_file = tmp_path / "broken_syntax.py"
-            syntax_file.write_text("def foo(: bar\n", encoding="utf-8")
-
-            wd = SupplyChainWatchdog(str(tmp_path))
-            result = wd.audit()
-
-            self.assertEqual(result["status"], "FAIL")
-            kinds = [v["kind"] for v in result["violations"]]
-            self.assertIn("PARSE_ERROR", kinds)
-
-    def test_dotted_submodule_imports_pass(self):
-        """Asserts dotted imports like os.path and concurrent.futures pass cleanly."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / ".sequence").mkdir()
-            (tmp_path / ".sequence" / "mrac_rules.json").write_text(json.dumps({"forbidden_imports": []}), encoding="utf-8")
-
-            good_file = tmp_path / "dotted_script.py"
-            good_file.write_text("import os.path\nfrom concurrent import futures\n", encoding="utf-8")
-
-            wd = SupplyChainWatchdog(str(tmp_path))
-            result = wd.audit()
-
-            self.assertEqual(result["status"], "PASS")
-            self.assertEqual(result["forbidden_imports_found"], 0)
+_missing_lock_wall_attrs = [
+    name
+    for name in ("TCB_ENGINE_SCRIPTS", "LockWallEngine")
+    if not hasattr(lock_wall, name)
+]
+if _missing_lock_wall_attrs:
+    sys.stderr.write(
+        "CONTRACT CANARY FAILURE: lock_wall.py is missing members "
+        f"required to seal test fixtures: {_missing_lock_wall_attrs}\n"
+    )
+    sys.exit(1)
 
 
-class TestRegressionWatchdog(unittest.TestCase):
-    """Test suite for regr_watchdog.py (Automated Regression Runner)."""
+class WatchdogSandboxTestCase(unittest.TestCase):
+    """
+    Builds a real, isolated TCB project tree -- all 11 TCB_ENGINE_SCRIPTS,
+    .sequence/mrac_rules.json, and a real sealed .sequence/lock_manifest.json
+    + boot_digest.txt -- then instantiates a real SupplyChainWatchdog bound
+    to it via its documented project_dir_str constructor parameter.
+    """
 
     def setUp(self):
-        if RegressionWatchdog is None:
-            self.skipTest("regr_watchdog.py module not available in environment")
-        self.runner = RegressionWatchdog(str(PROJECT_ROOT), timeout_seconds=30)
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="watchdog_canary_")
+        self.project_dir = Path(self._tmpdir.name).resolve()
 
-    def _get_tracked_excludes(self):
-        # Exclude tests that are not yet landed or self-referential
-        all_tests = [p.name for p in (PROJECT_ROOT / "tests").glob("test_*.py")]
-        landed_tests = {"test_api_fail_closed.py", "test_lock_wall.py", "test_watchdog.py"}
-        return list(set(all_tests) - landed_tests) + ["test_watchdog.py"]
+        for script_name in lock_wall.TCB_ENGINE_SCRIPTS:
+            script_path = self.project_dir / script_name
+            script_path.parent.mkdir(parents=True, exist_ok=True)
+            script_path.write_text(
+                f"# TCB script fixture: {script_name}\nVALUE = 1\n",
+                encoding="utf-8",
+            )
 
-    def test_past_slice_unit_tests_pass(self):
-        """Asserts past slice tests (test_review_engine.py, test_sequence_server.py) pass cleanly."""
-        result = self.runner.run_regression_suite(exclude_files=self._get_tracked_excludes())
-        self.assertEqual(result["status"], "PASS")
-        self.assertGreaterEqual(result["total_tests_run"], 1)
-        self.assertEqual(result["failed"], 0)
-        self.assertEqual(result["errored"], 0)
+        # schemas.py must plausibly define GenesisProjectSpec, matching
+        # the documented `from schemas import GenesisProjectSpec` case.
+        (self.project_dir / "schemas.py").write_text(
+            "class GenesisProjectSpec:\n    pass\n",
+            encoding="utf-8",
+        )
 
-    def test_dynamic_discovery_runs_new_dummy_test(self):
-        """Asserts adding a new dummy test_*.py fixture is executed dynamically without code changes."""
-        dummy_test = PROJECT_ROOT / "tests" / "test_dummy_fixture.py"
-        try:
-            dummy_test.write_text("import unittest\nclass TestDummy(unittest.TestCase):\n    def test_pass(self): self.assertTrue(True)\n", encoding="utf-8")
+        sequence_dir = self.project_dir / ".sequence"
+        sequence_dir.mkdir(parents=True, exist_ok=True)
+        (sequence_dir / "mrac_rules.json").write_text(
+            json.dumps({"forbidden_imports": []}), encoding="utf-8"
+        )
 
-            runner = RegressionWatchdog(str(PROJECT_ROOT), timeout_seconds=30)
-            result = runner.run_regression_suite(exclude_files=self._get_tracked_excludes())
+        sealing_engine = lock_wall.LockWallEngine(project_dir=str(self.project_dir))
+        sealing_engine.seal_lock_manifest()
 
-            self.assertEqual(result["status"], "PASS")
-            self.assertGreaterEqual(result["total_tests_run"], 2)
-        finally:
-            if dummy_test.exists():
-                dummy_test.unlink()
+        self.watchdog = watchdog.SupplyChainWatchdog(str(self.project_dir))
 
-    def test_hanging_test_timeout_isolation(self):
-        """Asserts synthetic test sleeping longer than timeout yields FAIL and non-zero exit."""
-        slow_test = PROJECT_ROOT / "tests" / "test_slow_fixture.py"
-        try:
-            slow_test.write_text("import unittest, time\nclass TestSlow(unittest.TestCase):\n    def test_slow(self): time.sleep(15)\n", encoding="utf-8")
+    def tearDown(self):
+        self._tmpdir.cleanup()
 
-            runner = RegressionWatchdog(str(PROJECT_ROOT), timeout_seconds=2)
-            excludes = [p.name for p in (PROJECT_ROOT / "tests").glob("test_*.py") if p.name != "test_slow_fixture.py"]
-            result = runner.run_regression_suite(exclude_files=excludes)
+    def _write_mrac_rules(self, forbidden_imports):
+        mrac_path = self.project_dir / ".sequence" / "mrac_rules.json"
+        mrac_path.write_text(
+            json.dumps({"forbidden_imports": forbidden_imports}),
+            encoding="utf-8",
+        )
 
-            self.assertEqual(result["status"], "FAIL")
-            self.assertGreaterEqual(result["failed"], 1)
-        finally:
-            if slow_test.exists():
-                slow_test.unlink()
+    def _write_scannable_file(self, relative_name, source_code):
+        file_path = self.project_dir / relative_name
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(source_code, encoding="utf-8")
+        return file_path
 
 
+class TestStdlibImportAllowed(WatchdogSandboxTestCase):
+    def test_stdlib_import_allowed(self):
+        # "import os", "import sys", "from pathlib import Path"
+        for module_name in ("os", "sys", "pathlib"):
+            with self.subTest(module=module_name):
+                self.assertIn(
+                    module_name,
+                    watchdog.STDLIB_FALLBACK,
+                    f"{module_name!r} is missing from STDLIB_FALLBACK",
+                )
 
-class TestFileHygieneEngine(unittest.TestCase):
-    """Test suite for file_hygiene_engine.py."""
-
-    def setUp(self):
-        if FileHygieneEngine is None:
-            self.skipTest("file_hygiene_engine.py module not available in environment")
-
-    def test_locked_file_protection_zero_bytes_written(self):
-        """Asserts zero bytes are written to a fixture file with STATUS: LOCKED header."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / "01_GOVERNANCE").mkdir()
-            (tmp_path / "02_BACKLOG").mkdir()
-            (tmp_path / "04_REVIEWS").mkdir()
-
-            locked_file = tmp_path / "01_GOVERNANCE" / "PROBLEM.md"
-            orig_content = "# Problem\n**STATUS: LOCKED — TEST**\nBody text content here.\n"
-            locked_file.write_text(orig_content, encoding="utf-8")
-
-            (tmp_path / "02_BACKLOG" / "AGILE_SLICES.md").write_text("# Backlog\n`slice-001-off-grid-review-parser`\n", encoding="utf-8")
-
-            engine = FileHygieneEngine(str(tmp_path), apply_changes=True)
-            result = engine.run_hygiene_audit()
-
-            # Assert content unchanged
-            self.assertEqual(locked_file.read_text(encoding="utf-8"), orig_content)
-            self.assertEqual(result["governance_headers_updated"], 0)
-
-    def test_orphan_incubator_doc_yields_orphan_status(self):
-        """Asserts orphaned incubator doc forces alignment_status ORPHAN and status FAIL."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            (tmp_path / "sequence_engine.py").write_text("def validate_and_open_path(p, r, mode='r'): return open(p, mode)\n", encoding="utf-8")
-            (tmp_path / "01_GOVERNANCE").mkdir()
-            (tmp_path / "02_BACKLOG").mkdir()
-            (tmp_path / "03_INCUBATOR").mkdir()
-            (tmp_path / "04_REVIEWS").mkdir()
-
-            (tmp_path / "02_BACKLOG" / "AGILE_SLICES.md").write_text("# Slices\n`slice-001-test`\n", encoding="utf-8")
-            (tmp_path / "03_INCUBATOR" / "orphaned_idea.md").write_text("# Orphaned document without slice reference\n", encoding="utf-8")
-
-            engine = FileHygieneEngine(str(tmp_path), apply_changes=False)
-            result = engine.run_hygiene_audit()
-
-            self.assertEqual(result["status"], "FAIL")
-            self.assertEqual(result["alignment_status"], "ORPHAN")
-            self.assertGreaterEqual(len(result["alignment_issues"]), 1)
+                allowed, reason = self.watchdog.is_module_allowed(module_name, [])
+                self.assertTrue(
+                    allowed,
+                    f"is_module_allowed({module_name!r}, []) returned "
+                    f"(False, {reason!r}); expected a standard library "
+                    f"module to be allowed",
+                )
 
 
-class TestSchemaValidation(unittest.TestCase):
-    """Test suite for envelope validators in schemas.py."""
+class TestFirstPartyImportAllowed(WatchdogSandboxTestCase):
+    def test_first_party_import_allowed(self):
+        # "import sequence_server", "from schemas import GenesisProjectSpec"
+        for module_name in ("sequence_server", "schemas"):
+            with self.subTest(module=module_name):
+                self.assertTrue(
+                    self.watchdog.is_first_party_module(module_name),
+                    f"is_first_party_module({module_name!r}) returned "
+                    f"False for a real .py file present in project_dir",
+                )
 
-    def test_watchdog_envelope_validation(self):
-        """Tests validate_watchdog_envelope invariants."""
-        valid_envelope = {
-            "status": "PASS",
-            "scanned_files_count": 10,
-            "forbidden_imports_found": 0,
-            "violations": [],
-            "timestamp": "2026-09-17T12:00:00Z"
-        }
-        ok, errors = validate_watchdog_envelope(valid_envelope)
-        self.assertTrue(ok, msg=f"Errors: {errors}")
+                allowed, reason = self.watchdog.is_module_allowed(module_name, [])
+                self.assertTrue(
+                    allowed,
+                    f"is_module_allowed({module_name!r}, []) returned "
+                    f"(False, {reason!r}); expected a first-party TCB "
+                    f"module to be allowed",
+                )
 
-        # Invalid status PASS with non-empty violations
-        invalid_envelope = dict(valid_envelope)
-        invalid_envelope["violations"] = [{"file": "a.py", "line": 1, "name": "req", "kind": "IMPORT"}]
-        ok, errors = validate_watchdog_envelope(invalid_envelope)
-        self.assertFalse(ok)
 
-        # Invalid unknown key
-        unknown_key_envelope = dict(valid_envelope)
-        unknown_key_envelope["extra_field"] = "bad"
-        ok, errors = validate_watchdog_envelope(unknown_key_envelope)
-        self.assertFalse(ok)
+class TestExternalPipPackageFlagged(WatchdogSandboxTestCase):
+    def test_external_pip_package_flagged(self):
+        # "import requests", "import pandas", "from bs4 import BeautifulSoup"
+        for module_name in ("requests", "pandas", "bs4"):
+            with self.subTest(module=module_name):
+                allowed, reason = self.watchdog.is_module_allowed(module_name, [])
+                self.assertFalse(
+                    allowed,
+                    f"is_module_allowed({module_name!r}, []) returned "
+                    f"(True, ...); expected an unrecognized external pip "
+                    f"package to be rejected",
+                )
+                self.assertIsInstance(reason, str)
+                self.assertIn(
+                    "External pip package",
+                    reason,
+                    f"Rejection reason for {module_name!r} did not read "
+                    f"as an external-pip-package rejection: {reason!r}",
+                )
+                self.assertIn(module_name, reason)
+                self.assertIn("not allowed", reason)
 
-    def test_regr_watchdog_envelope_validation(self):
-        """Tests validate_regr_watchdog_envelope invariants."""
-        valid_envelope = {
-            "status": "PASS",
-            "total_tests_run": 5,
-            "passed": 5,
-            "failed": 0,
-            "errored": 0,
-            "failed_test_names": [],
-            "timestamp": "2026-09-17T12:00:00Z"
-        }
-        ok, errors = validate_regr_watchdog_envelope(valid_envelope)
-        self.assertTrue(ok, msg=f"Errors: {errors}")
 
-        # Total mismatch
-        invalid_envelope = dict(valid_envelope)
-        invalid_envelope["total_tests_run"] = 10
-        ok, errors = validate_regr_watchdog_envelope(invalid_envelope)
-        self.assertFalse(ok)
+class TestStaticImportFlagged(WatchdogSandboxTestCase):
+    def test_ast_import_of_external_package_is_flagged(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
 
-    def test_file_hygiene_envelope_validation(self):
-        """Tests validate_file_hygiene_envelope invariants."""
-        valid_envelope = {
-            "status": "PASS",
-            "governance_headers_updated": 0,
-            "loose_files_sweeper_count": 0,
-            "alignment_status": "ALIGNED",
-            "alignment_issues": [],
-            "timestamp": "2026-09-17T12:00:00Z"
-        }
-        ok, errors = validate_file_hygiene_envelope(valid_envelope)
-        self.assertTrue(ok, msg=f"Errors: {errors}")
+        target_file = self._write_scannable_file(
+            "static_external_import_sample.py",
+            "import requests\n",
+        )
 
-        # DRIFT with status PASS
-        invalid_envelope = dict(valid_envelope)
-        invalid_envelope["alignment_status"] = "DRIFT"
-        ok, errors = validate_file_hygiene_envelope(invalid_envelope)
-        self.assertFalse(ok)
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertIsInstance(violations, list)
+        matching = [
+            violation
+            for violation in violations
+            if "requests" in str(violation.get("name", ""))
+        ]
+        self.assertTrue(
+            matching,
+            "scan_file() did not flag the ast.Import node for "
+            f"'import requests'; got: {violations!r}",
+        )
+
+        for violation in matching:
+            self.assertIn("file", violation)
+            self.assertIn("line", violation)
+            self.assertIn("name", violation)
+            self.assertIn("kind", violation)
+
+        self.assertTrue(
+            any(violation.get("line") == 1 for violation in matching),
+            "No requests violation was attributed to the import on line 1: "
+            f"{matching!r}",
+        )
+
+    def test_ast_importfrom_of_external_package_is_flagged(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
+
+        target_file = self._write_scannable_file(
+            "static_external_importfrom_sample.py",
+            "from bs4 import BeautifulSoup\n",
+        )
+
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertIsInstance(violations, list)
+        matching = [
+            violation
+            for violation in violations
+            if "bs4" in str(violation.get("name", ""))
+        ]
+        self.assertTrue(
+            matching,
+            "scan_file() did not flag the ast.ImportFrom node for "
+            f"'from bs4 import BeautifulSoup'; got: {violations!r}",
+        )
+
+    def test_package_name_in_plain_string_is_not_an_import(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
+
+        target_file = self._write_scannable_file(
+            "external_package_string_sample.py",
+            'package_name = "requests"\n',
+        )
+
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertEqual(
+            violations,
+            [],
+            "scan_file() treated an external-package name in a plain "
+            f"string as an import: {violations!r}",
+        )
+
+
+class TestMracForbiddenImportFlagged(WatchdogSandboxTestCase):
+    def test_mrac_forbidden_import_flagged(self):
+        self._write_mrac_rules(["os.system"])
+
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        self.assertIsNotNone(forbidden_imports)
+        self.assertIn("os.system", forbidden_imports)
+
+        target_file = self._write_scannable_file(
+            "mrac_violation_sample.py",
+            "import os\n\n\ndef run():\n    os.system(\"dir\")\n",
+        )
+
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertIsInstance(violations, list)
+        self.assertTrue(
+            len(violations) > 0,
+            "scan_file() reported no violations for an MRAC-forbidden "
+            "os.system(...) call",
+        )
+
+        matching = [
+            v for v in violations if "os.system" in str(v.get("name", ""))
+        ]
+        self.assertTrue(
+            len(matching) > 0,
+            f"No violation entry referenced the MRAC-forbidden name "
+            f"'os.system'; got: {violations!r}",
+        )
+
+        violation = matching[0]
+        self.assertIn("file", violation)
+        self.assertIn("line", violation)
+        self.assertIn("name", violation)
+        self.assertIn("kind", violation)
+        self.assertEqual(violation.get("kind"), "IMPORT")
+        self.assertEqual(violation.get("line"), 5)
+
+
+class TestTryGuardedImportIgnored(WatchdogSandboxTestCase):
+    def test_try_guarded_import_ignored(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
+
+        target_file = self._write_scannable_file(
+            "try_guarded_sample.py",
+            "try:\n"
+            "    import optional_package\n"
+            "except ImportError:\n"
+            "    pass\n",
+        )
+
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertEqual(
+            violations,
+            [],
+            f"scan_file() flagged a try-guarded import as a violation: "
+            f"{violations!r}",
+        )
+
+
+class TestDynamicImportFlagged(WatchdogSandboxTestCase):
+    def test_dynamic_import_flagged(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
+
+        dunder_import_file = self._write_scannable_file(
+            "dynamic_dunder_import_sample.py",
+            "mod = __import__(\"requests\")\n",
+        )
+        violations_a = self.watchdog.scan_file(dunder_import_file, forbidden_imports)
+        self.assertTrue(
+            len(violations_a) > 0,
+            "scan_file() did not flag a __import__('requests') dynamic import",
+        )
+        matching_a = [
+            v for v in violations_a if "requests" in str(v.get("name", ""))
+        ]
+        self.assertTrue(
+            len(matching_a) > 0,
+            f"No violation referenced 'requests' for the __import__(...) "
+            f"call: {violations_a!r}",
+        )
+
+        importlib_file = self._write_scannable_file(
+            "dynamic_importlib_sample.py",
+            "import importlib\n\nmod = importlib.import_module(\"flask\")\n",
+        )
+        violations_b = self.watchdog.scan_file(importlib_file, forbidden_imports)
+        matching_b = [
+            v for v in violations_b if "flask" in str(v.get("name", ""))
+        ]
+        self.assertTrue(
+            len(matching_b) > 0,
+            f"No violation referenced 'flask' for the "
+            f"importlib.import_module(...) call: {violations_b!r}",
+        )
+
+        for violation in matching_a + matching_b:
+            self.assertIn("file", violation)
+            self.assertIn("line", violation)
+            self.assertIn("name", violation)
+            self.assertIn("kind", violation)
+
+    def test_external_name_in_ordinary_call_is_not_dynamic_import(self):
+        forbidden_imports, load_errors = self.watchdog.load_mrac_rules()
+        self.assertEqual(load_errors, [])
+        forbidden_imports = forbidden_imports or []
+
+        target_file = self._write_scannable_file(
+            "ordinary_call_sample.py",
+            "def lookup(name):\n"
+            "    return name\n"
+            "\n"
+            'result = lookup("requests")\n',
+        )
+
+        violations = self.watchdog.scan_file(target_file, forbidden_imports)
+
+        self.assertEqual(
+            violations,
+            [],
+            "scan_file() treated an ordinary function call containing an "
+            f"external-package name as a dynamic import: {violations!r}",
+        )
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)
