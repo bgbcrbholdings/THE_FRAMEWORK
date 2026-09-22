@@ -31,21 +31,19 @@ from pathlib import Path
 try:
     import watchdog
 except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
-    sys.stderr.write(
+    raise ImportError(
         "CONTRACT CANARY FAILURE: could not import watchdog.py: "
-        f"{exc!r}\n"
-    )
-    sys.exit(1)
+        f"{exc!r}"
+    ) from exc
 
 try:
     import lock_wall
 except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
-    sys.stderr.write(
+    raise ImportError(
         "CONTRACT CANARY FAILURE: could not import lock_wall.py, which "
         "this suite requires to seal a valid .sequence/lock_manifest.json "
-        f"fixture for SupplyChainWatchdog's documented TCB check: {exc!r}\n"
-    )
-    sys.exit(1)
+        f"fixture for SupplyChainWatchdog's documented TCB check: {exc!r}"
+    ) from exc
 
 
 REQUIRED_ATTRS = (
@@ -55,11 +53,10 @@ REQUIRED_ATTRS = (
 )
 _missing = [name for name in REQUIRED_ATTRS if not hasattr(watchdog, name)]
 if _missing:
-    sys.stderr.write(
+    raise AttributeError(
         "CONTRACT CANARY FAILURE: watchdog.py is missing required "
-        f"interface members: {_missing}\n"
+        f"interface members: {_missing}"
     )
-    sys.exit(1)
 
 _REQUIRED_METHODS = (
     "load_mrac_rules",
@@ -74,11 +71,10 @@ _missing_methods = [
     if not hasattr(watchdog.SupplyChainWatchdog, name)
 ]
 if _missing_methods:
-    sys.stderr.write(
+    raise AttributeError(
         "CONTRACT CANARY FAILURE: SupplyChainWatchdog is missing "
-        f"required methods: {_missing_methods}\n"
+        f"required methods: {_missing_methods}"
     )
-    sys.exit(1)
 
 _missing_lock_wall_attrs = [
     name
@@ -86,11 +82,10 @@ _missing_lock_wall_attrs = [
     if not hasattr(lock_wall, name)
 ]
 if _missing_lock_wall_attrs:
-    sys.stderr.write(
+    raise AttributeError(
         "CONTRACT CANARY FAILURE: lock_wall.py is missing members "
-        f"required to seal test fixtures: {_missing_lock_wall_attrs}\n"
+        f"required to seal test fixtures: {_missing_lock_wall_attrs}"
     )
-    sys.exit(1)
 
 
 class WatchdogSandboxTestCase(unittest.TestCase):
