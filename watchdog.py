@@ -282,16 +282,30 @@ class SupplyChainWatchdog:
                         "kind": "IMPORTFROM"
                     })
 
-            # Dynamic Call Traversal: __import__('foo'), importlib.import_module('bar'), exec/eval/compile
+            # Dynamic Call Traversal: __import__('foo'), importlib.import_module('bar'), exec/eval/compile, MRAC forbidden calls
             elif isinstance(node, ast.Call):
-                func_name = ""
-                if isinstance(node.func, ast.Name):
-                    func_name = node.func.id
-                elif isinstance(node.func, ast.Attribute):
-                    func_name = node.func.attr
+                def _get_call_name(call_node):
+                    if isinstance(call_node, ast.Name):
+                        return call_node.id
+                    elif isinstance(call_node, ast.Attribute):
+                        prefix = _get_call_name(call_node.value)
+                        return f"{prefix}.{call_node.attr}" if prefix else call_node.attr
+                    return ""
+
+                full_call_name = _get_call_name(node.func)
+                func_name = node.func.id if isinstance(node.func, ast.Name) else (node.func.attr if isinstance(node.func, ast.Attribute) else "")
+
+                # Check MRAC forbidden call names
+                if forbidden_mrac and full_call_name and full_call_name in forbidden_mrac:
+                    violations.append({
+                        "file": rel_path,
+                        "line": getattr(node, 'lineno', 1),
+                        "name": full_call_name,
+                        "kind": "IMPORT"
+                    })
 
                 # Check __import__
-                if func_name == "__import__":
+                elif func_name == "__import__":
                     if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
                         target_mod = node.args[0].value
                         allowed, _ = self.is_module_allowed(target_mod, forbidden_mrac)
@@ -340,6 +354,12 @@ class SupplyChainWatchdog:
                     })
 
         return violations
+
+    def scan_project(self):
+        """Traverses all .py files under project_dir. Returns (is_clean: bool, violations: list[dict])."""
+        result = self.audit()
+        is_clean = (result.get("status") == "PASS")
+        return is_clean, result.get("violations", [])
 
     def audit(self):
         """Performs full supply-chain AST audit over codebase."""
