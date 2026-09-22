@@ -125,7 +125,7 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
         raise PermissionError(f"PATH TRAVERSAL VIOLATION: Path '{target_path}' escapes approved root '{root_path}'.")
 
     # 3. Check for reparse points (symlinks/junctions)
-    if target_path.exists() and check_win32_reparse_point(target_path):
+    if target_path.exists() and (target_path.is_symlink() or check_win32_reparse_point(target_path)):
         raise PermissionError(f"REPARSE POINT VIOLATION: Path '{target_path}' is a Win32 symlink or junction point.")
 
     # Safe open file handle return
