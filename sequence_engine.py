@@ -117,6 +117,11 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
         full_path_str = os.path.join(str(root_dir_str), decoded_path_str)
     else:
         full_path_str = decoded_path_str
+
+    raw_path_obj = Path(full_path_str)
+    if raw_path_obj.is_symlink() or check_win32_reparse_point(raw_path_obj):
+        raise PermissionError(f"REPARSE POINT VIOLATION: Path '{raw_path_obj}' is a symlink or Win32 junction point.")
+
     target_path = Path(os.path.realpath(full_path_str)).resolve()
 
     try:
@@ -124,7 +129,6 @@ def validate_and_open_path(path_str, root_dir_str=None, mode="r", encoding="utf-
     except ValueError:
         raise PermissionError(f"PATH TRAVERSAL VIOLATION: Path '{target_path}' escapes approved root '{root_path}'.")
 
-    # 3. Check for reparse points (symlinks/junctions)
     if target_path.exists() and (target_path.is_symlink() or check_win32_reparse_point(target_path)):
         raise PermissionError(f"REPARSE POINT VIOLATION: Path '{target_path}' is a Win32 symlink or junction point.")
 
