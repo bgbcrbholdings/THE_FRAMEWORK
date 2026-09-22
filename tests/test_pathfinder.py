@@ -33,28 +33,23 @@ import threading
 import time
 import unittest
 
-try:
-    import pathfinder_server
-except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
-    sys.stderr.write(
-        "CONTRACT CANARY FAILURE: could not import pathfinder_server.py: "
-        f"{exc!r}\n"
-    )
-    sys.exit(1)
-
-
+pathfinder_server = None
+IMPORT_ERROR = None
 REQUIRED_ATTRS = (
     "BOUND_IP",
     "SERVER_PORT",
     "PathfinderRequestHandler",
 )
-_missing = [name for name in REQUIRED_ATTRS if not hasattr(pathfinder_server, name)]
-if _missing:
-    sys.stderr.write(
-        "CONTRACT CANARY FAILURE: pathfinder_server.py is missing required "
-        f"interface members: {_missing}\n"
-    )
-    sys.exit(1)
+
+try:
+    import pathfinder_server
+    _missing = [name for name in REQUIRED_ATTRS if not hasattr(pathfinder_server, name)]
+    if _missing:
+        IMPORT_ERROR = f"pathfinder_server.py is missing required interface members: {_missing}"
+        pathfinder_server = None
+except Exception as exc:  # noqa: BLE001 - intentional fail-closed behavior
+    IMPORT_ERROR = f"could not import pathfinder_server.py: {exc!r}"
+    pathfinder_server = None
 
 
 def _http_get(host, port, path, timeout=5):
@@ -113,6 +108,9 @@ class PathfinderHealthLiveServerTestCase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        if IMPORT_ERROR or pathfinder_server is None:
+            raise RuntimeError(f"CONTRACT CANARY FAILURE: {IMPORT_ERROR}")
+
         cls._tmpdir = tempfile.TemporaryDirectory(prefix="pathfinder_canary_")
         cls.work_dir = cls._tmpdir.name
 
