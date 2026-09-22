@@ -133,7 +133,7 @@ class LockWallEngine:
 
     def __init__(self, project_dir=APPROVED_ROOT_DIR):
         self.raw_project_dir = str(project_dir)
-        ok, res = canonicalize_and_validate_path(str(project_dir), str(APPROVED_ROOT_DIR))
+        ok, res = canonicalize_and_validate_path(str(project_dir), str(project_dir))
         if not ok:
             raise PermissionError(f"INVALID_PROJECT_DIR: {res}")
         self.project_dir = Path(res).resolve()
