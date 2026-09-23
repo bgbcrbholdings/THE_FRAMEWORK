@@ -38,12 +38,12 @@
     },
     "build_packet.py": {
       "path": "build_packet.py",
-      "sha256": "15ffefe17570b2d023c5710cc9fa58197627cedc8bacb7fa56a7359681afbebb",
-      "size_bytes": 16083,
-      "lines": 324,
+      "sha256": "8a2dabdf54fa9a9f25c2a63686e0cda0f81770bd8596b2e3b269a6151da7e6c7",
+      "size_bytes": 18136,
+      "lines": 380,
       "tier": "Tier 1 (Gate Enforcement)",
-      "description": "Control script build_packet.py",
-      "status": "BASELINE_SEALED"
+      "description": "Review Packet Assembly & Finding Chaining",
+      "status": "REMEDIATED_T1"
     },
     "file_hygiene_engine.py": {
       "path": "file_hygiene_engine.py",

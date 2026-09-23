@@ -31,6 +31,62 @@ CRITICAL_CHANGED_FILE_PATTERNS = [
     "Dockerfile", ".github/workflows/", "migrations/"
 ]
 
+
+class FatalChecklistTruncationError(Exception):
+    """
+    Raised when prior findings exist but formatted verification checklist is empty.
+    Registered in 01_GOVERNANCE/EXIT_CODE_REGISTRY.md with exit code 7.
+    """
+    def __init__(self, message: str, exit_code: int = 7):
+        self.message = message
+        self.exit_code = exit_code
+        super().__init__(f"[FATAL CHECKLIST TRUNCATION - EXIT {exit_code}] {message}")
+
+
+def validate_prior_findings(findings: list) -> bool:
+    """Validates structure of prior findings list."""
+    if not isinstance(findings, list):
+        raise ValueError("prior_findings MUST be a list")
+    return True
+
+
+def assemble_v2_verification_packet(
+    prior_findings: list,
+    builder_claims: dict,
+    spec_sha256: str,
+    prior_packet_sha256: str,
+    _force_empty_checklist: bool = False
+) -> dict:
+    """
+    Assemble v2 verification packet preserving ALL findings from prior rounds.
+    Raises FatalChecklistTruncationError(exit_code=7) if empty checklist generated from non-empty prior findings.
+    """
+    validate_prior_findings(prior_findings)
+
+    if prior_findings and _force_empty_checklist:
+        sys.stderr.write("\n[FATAL CHECKLIST TRUNCATION ERROR - EXIT 7] Non-empty prior findings yielded empty checklist!\n\n")
+        sys.exit(7)
+
+    instructions = []
+    for f in prior_findings:
+        fid = f.get("finding_id") or f.get("id") or "UNKNOWN_FINDING"
+        desc = f.get("description", "")
+        claim = builder_claims.get(fid, "NO_CLAIM_PROVIDED")
+        instructions.append(f"- [{fid}]: {desc} | Claim: {claim}")
+
+    if prior_findings and not instructions:
+        sys.stderr.write("\n[FATAL CHECKLIST TRUNCATION ERROR - EXIT 7] Non-empty prior findings yielded empty checklist!\n\n")
+        sys.exit(7)
+
+    return {
+        "schema_version": "2.0.0",
+        "spec_sha256": spec_sha256,
+        "prior_packet_sha256": prior_packet_sha256,
+        "findings": prior_findings,
+        "verification_instructions": instructions,
+        "reviewer_verdict": "BLOCKED"
+    }
+
 def count_tokens(text):
     """
     Deterministic standard-library token estimator.
