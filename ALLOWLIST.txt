@@ -28,6 +28,7 @@ packet_verify.py
 regr_watchdog.py
 test_cp_review.py
 slice_gate.py
+allowlist_sync.py
 tests/test_api_fail_closed.py
 tests/test_lock_wall.py
 tests/test_watchdog.py
@@ -36,5 +37,4 @@ tests/test_genesis.py
 tests/test_pathfinder.py
 tests/test_scorecard.py
 tests/test_slice_gate.py
-allowlist_sync.py
 tests/test_allowlist_sync.py

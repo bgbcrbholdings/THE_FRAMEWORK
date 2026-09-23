@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 # Root Anchoring
 APPROVED_ROOT_DIR = Path(__file__).resolve().parent
 
-# 20 TCB Engine Scripts
+# 22 TCB Engine Scripts
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
@@ -39,6 +39,8 @@ TCB_ENGINE_SCRIPTS = [
     "packet_verify.py",
     "regr_watchdog.py",
     "test_cp_review.py",
+    "slice_gate.py",
+    "allowlist_sync.py",
 ]
 
 # Win32 Reparse Point Flags
@@ -352,6 +354,9 @@ class LockWallEngine:
 if __name__ == "__main__":
     engine = LockWallEngine()
     if len(sys.argv) > 1 and sys.argv[1] == "--seal":
+        from slice_gate import assert_slice_action_allowed, resolve_active_slice_id
+        slice_id = resolve_active_slice_id(APPROVED_ROOT_DIR)
+        assert_slice_action_allowed(slice_id, "LOCK", APPROVED_ROOT_DIR)
         data = engine.seal_lock_manifest()
         print(f"[OK] LockWallEngine: Sealed manifest with {data['total_tcb_targets_count']} targets.")
         sys.exit(0)

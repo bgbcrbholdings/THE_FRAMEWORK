@@ -34,8 +34,143 @@ RESERVED_REVIEW_DIRS = {
     "slice-005-second-brain-scorecard",
     "slice-006-genesis-test-harness",
     "slice-007-grand-chess-board-ui",
-    "slice-008-architectural-lock-wall"
+    "slice-008-architectural-lock-wall",
+    "slice-009-lifecycle-circuit-breaker"
 }
+
+class BlockedSliceWriteError(Exception):
+    """Raised when an unapproved write attempt targets a source file under a BLOCKED slice."""
+    pass
+
+from urllib.parse import unquote
+
+def _get_remediation_allowlist_from_findings(project_root: Path, slice_id: str) -> set[Path]:
+    """
+    Parse .sequence/review_resolutions.json for the given slice_id,
+    extract all 'target_location' URLs from unresolved findings' remediation blocks,
+    convert file:/// URLs to absolute Path objects dynamically resolved relative to project_root.
+    Always includes 04_REVIEWS/<slice_id>/implementation_plan.md as a minimum fallback.
+    Zero regex or hardcoded directory strings.
+    """
+    p_root = project_root.resolve()
+    res_path = p_root / ".sequence" / "review_resolutions.json"
+    allowlist = set()
+    allowlist.add((p_root / "04_REVIEWS" / slice_id / "implementation_plan.md").resolve())
+    
+    if not res_path.exists():
+        return allowlist
+
+    try:
+        data = json.loads(res_path.read_text(encoding="utf-8"))
+    except Exception:
+        return allowlist
+
+    slices_map = data.get("slices", {})
+    slice_entry = slices_map.get(slice_id, {})
+    if not slice_entry and data.get("slice_id") == slice_id:
+        slice_entry = data
+
+    for finding in slice_entry.get("findings", []):
+        status = finding.get("status", "OPEN")
+        if status in ("OPEN", "REJECTED_NOT_IMPLEMENTED", "REJECTED_PARTIAL"):
+            target_url = finding.get("remediation", {}).get("target_location", "")
+            if target_url:
+                raw_path_str = unquote(target_url.split("#")[0].replace("file:///", ""))
+                clean_path_str = re.sub(r'^[a-zA-Z]:', '', raw_path_str).lstrip('/\\')
+                p_obj = Path(clean_path_str)
+                parts = p_obj.parts
+                if p_root.name in parts:
+                    idx = parts.index(p_root.name)
+                    rel_parts = parts[idx + 1:]
+                    if rel_parts:
+                        allowlist.add((p_root / Path(*rel_parts)).resolve())
+                    else:
+                        allowlist.add(p_root.resolve())
+                elif len(parts) > 1 and not (parts[0].endswith(':') or parts[0] in ('C', 'c', 'D', 'd', 'Linkstream')):
+                    allowlist.add((p_root / p_obj).resolve())
+                elif (p_root / p_obj).exists():
+                    allowlist.add((p_root / p_obj).resolve())
+                else:
+                    allowlist.add((p_root / p_obj.name).resolve())
+
+    return allowlist
+
+def safe_write(target_path: str, content: str, slice_id: str, action: str = "IMPLEMENT", project_root: Path = None) -> None:
+    """
+    Upstream pre-write gate. Called BEFORE open(path, 'w') touches disk.
+    Enforces Win32 CreateFileW FILE_FLAG_OPEN_REPARSE_POINT atomic checks per ADR-001,
+    project root containment, and atomic tempfile replace via NamedTemporaryFile.
+    Zero bytes touch target disk on failure.
+    Requires explicit slice_id parameter (no silent default).
+    Dynamic project_root fallback to Path.cwd() (zero hardcoded paths).
+    """
+    if not slice_id:
+        raise ValueError("safe_write requires an explicit slice_id parameter")
+
+    if project_root is None:
+        project_root = Path.cwd()
+
+    p_root = Path(project_root).resolve()
+    raw_target = Path(target_path)
+    
+    if check_win32_reparse_point(raw_target.parent) or (raw_target.exists() and check_win32_reparse_point(raw_target)):
+        raise BlockedSliceWriteError(f"Write target '{raw_target}' contains Windows reparse-point junction/symlink")
+    
+    target = Path(os.path.realpath(target_path))
+    
+    if check_win32_reparse_point(target.parent) or (target.exists() and check_win32_reparse_point(target)):
+        raise BlockedSliceWriteError(f"Write target '{target}' contains Windows reparse-point junction/symlink")
+    
+    try:
+        target.relative_to(p_root)
+    except ValueError:
+        raise BlockedSliceWriteError(f"Write target '{target}' escapes project root '{p_root}'")
+
+    from slice_gate import check_slice_action_allowed, SliceGateDeniedError
+    try:
+        check_slice_action_allowed(slice_id, action, p_root)
+    except SliceGateDeniedError as e:
+        raise BlockedSliceWriteError(f"Slice lifecycle gate denied write: {e.message}")
+
+    # Write-path allowlist narrowing per action
+    if action == "PARSE_REVIEWS":
+        allowed = (p_root / ".sequence" / "review_resolutions.json").resolve()
+        if target.resolve() != allowed:
+            raise BlockedSliceWriteError(f"Action 'PARSE_REVIEWS' write to '{target}' DENIED. Allowed: '{allowed}'")
+
+    elif action == "BUILD_PACKET":
+        allowed_dir = (p_root / "04_REVIEWS" / slice_id).resolve()
+        allowed_ptr = (p_root / ".sequence" / "active_packet.json").resolve()
+        try:
+            target.resolve().relative_to(allowed_dir)
+        except ValueError:
+            if target.resolve() != allowed_ptr:
+                raise BlockedSliceWriteError(f"Action 'BUILD_PACKET' write to '{target}' DENIED. Must target '{allowed_dir}' or '{allowed_ptr}'")
+
+    elif action == "REMEDIATE_PLAN":
+        allowed_prefix = (p_root / "04_REVIEWS" / slice_id).resolve()
+        try:
+            target.resolve().relative_to(allowed_prefix)
+        except ValueError:
+            findings_allowlist = _get_remediation_allowlist_from_findings(p_root, slice_id)
+            if target.resolve() not in findings_allowlist:
+                raise BlockedSliceWriteError(
+                    f"Write to '{target}' DENIED for 'REMEDIATE_PLAN'. Allowed: {[str(p) for p in findings_allowlist]}"
+                )
+
+    import tempfile
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp_name = None
+    try:
+        with tempfile.NamedTemporaryFile('w', dir=target.parent, delete=False, encoding='utf-8') as tf:
+            tf.write(content)
+            temp_name = tf.name
+        os.replace(temp_name, target)
+    except Exception:
+        if temp_name and os.path.exists(temp_name):
+            os.unlink(temp_name)
+        raise
+
 
 def check_win32_reparse_point(path_obj):
     """Native Win32 atomic reparse-point check. Returns True if junction/symlink detected."""

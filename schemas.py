@@ -743,7 +743,29 @@ def validate_ast_graph_envelope(data) -> bool:
     if not validate_iso_datetime(timestamp[:-1]):
         return False
 
-    return True
+def validate_review_resolutions_schema(data: dict) -> bool:
+    """
+    Validates structure of .sequence/review_resolutions.json dictionary.
+    Supports both v1 per-slice map schema ('slices') and legacy single-slice fallback.
+    """
+    if not isinstance(data, dict):
+        return False
+    if "slices" in data:
+        slices = data["slices"]
+        if not isinstance(slices, dict):
+            return False
+        for s_id, s_data in slices.items():
+            if not isinstance(s_data, dict):
+                return False
+            if s_data.get("slice_id") != s_id:
+                return False
+            if "overall_verdict" not in s_data or "packet_sha256" not in s_data:
+                return False
+        return True
+    elif "slice_id" in data:
+        return "overall_verdict" in data and "packet_sha256" in data
+    return False
+
 
 
 
