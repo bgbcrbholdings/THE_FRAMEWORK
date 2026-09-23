@@ -29,6 +29,12 @@ regr_watchdog.py
 test_cp_review.py
 slice_gate.py
 allowlist_sync.py
+control_script_guard.py
+01_GOVERNANCE/CONTROL_PLANE_MANIFEST.json
+01_GOVERNANCE/EXIT_CODE_REGISTRY.md
+04_REVIEWS/goe_synthesis_ratification_packet.txt
+.sequence/active_packet.json
+.sequence/review_resolutions.json
 tests/test_api_fail_closed.py
 tests/test_lock_wall.py
 tests/test_watchdog.py
@@ -38,3 +44,5 @@ tests/test_pathfinder.py
 tests/test_scorecard.py
 tests/test_slice_gate.py
 tests/test_allowlist_sync.py
+tests/control_plane/tier_0/test_control_script_guard_contracts.py
+tests/control_plane/tier_1/test_build_packet_contracts.py
