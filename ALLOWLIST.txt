@@ -33,8 +33,6 @@ control_script_guard.py
 01_GOVERNANCE/CONTROL_PLANE_MANIFEST.json
 01_GOVERNANCE/EXIT_CODE_REGISTRY.md
 04_REVIEWS/goe_synthesis_ratification_packet.txt
-.sequence/active_packet.json
-.sequence/review_resolutions.json
 tests/test_api_fail_closed.py
 tests/test_lock_wall.py
 tests/test_watchdog.py

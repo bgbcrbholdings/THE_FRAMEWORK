@@ -1,0 +1,166 @@
+{
+  "manifest_name": "CONTROL_PLANE_MANIFEST",
+  "version": "1.0.0-baseline",
+  "created_utc": "2026-09-23T16:03:00Z",
+  "script_count": 17,
+  "governance_anchors": {
+    "constitution_sha256": "0775225037844b9681b55241ce9252bb7a24c7393b269d911d6452a3ba6a36cc",
+    "bootstrap_sha256": "",
+    "pm_playbook_sha256": "bf459dca77afbf4539784d11f6bf92e9c66a3383c040ea205c72be829828f92d"
+  },
+  "scripts": {
+    "agent_dispatcher.py": {
+      "path": "agent_dispatcher.py",
+      "sha256": "ea0e1947e4715c93fd7b347462cd3c5bb4715b31b1fa519130bf94de69705e42",
+      "size_bytes": 29856,
+      "lines": 725,
+      "tier": "Tier 1 (Gate Enforcement)",
+      "description": "Control script agent_dispatcher.py",
+      "status": "BASELINE_SEALED"
+    },
+    "allowlist_sync.py": {
+      "path": "allowlist_sync.py",
+      "sha256": "7d158f91a83635d5d1c375d347e32be30dedbeef4cd8c96380583d3586ad3bcd",
+      "size_bytes": 8876,
+      "lines": 197,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script allowlist_sync.py",
+      "status": "BASELINE_SEALED"
+    },
+    "backup_engine.py": {
+      "path": "backup_engine.py",
+      "sha256": "a6ad251f67eef9571b35d9695aca6bf9909c48e7f4b60f981342cc51e9bafeca",
+      "size_bytes": 28270,
+      "lines": 613,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script backup_engine.py",
+      "status": "BASELINE_SEALED"
+    },
+    "build_packet.py": {
+      "path": "build_packet.py",
+      "sha256": "15ffefe17570b2d023c5710cc9fa58197627cedc8bacb7fa56a7359681afbebb",
+      "size_bytes": 16083,
+      "lines": 324,
+      "tier": "Tier 1 (Gate Enforcement)",
+      "description": "Control script build_packet.py",
+      "status": "BASELINE_SEALED"
+    },
+    "file_hygiene_engine.py": {
+      "path": "file_hygiene_engine.py",
+      "sha256": "6e8fd8f4f49a0a655aa95df8dfc843c638830488f4e3b455bca870565f350d1f",
+      "size_bytes": 27885,
+      "lines": 655,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script file_hygiene_engine.py",
+      "status": "BASELINE_SEALED"
+    },
+    "lock_wall.py": {
+      "path": "lock_wall.py",
+      "sha256": "1fa26e4c1614b23ee20eaa9128fc0a788915068bce583a584086598d5f769088",
+      "size_bytes": 15828,
+      "lines": 372,
+      "tier": "Tier 0 (Constitutional Core)",
+      "description": "Control script lock_wall.py",
+      "status": "BASELINE_SEALED"
+    },
+    "pathfinder_server.py": {
+      "path": "pathfinder_server.py",
+      "sha256": "76a3d725eb9ae3b855753025317c1754c3c13995e8caef41d9c6de576fc1706d",
+      "size_bytes": 2258,
+      "lines": 75,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script pathfinder_server.py",
+      "status": "BASELINE_SEALED"
+    },
+    "project_wizard.py": {
+      "path": "project_wizard.py",
+      "sha256": "08c837acddefb3fe2c5e020bdcf885d20b6b420a58ad4b9a2f121d4bc5146c8c",
+      "size_bytes": 13585,
+      "lines": 318,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script project_wizard.py",
+      "status": "BASELINE_SEALED"
+    },
+    "regr_watchdog.py": {
+      "path": "regr_watchdog.py",
+      "sha256": "f0966f3ce494a3da0ef6a2473d343d42381800661234f395564248e983c5ded7",
+      "size_bytes": 10626,
+      "lines": 262,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script regr_watchdog.py",
+      "status": "BASELINE_SEALED"
+    },
+    "schemas.py": {
+      "path": "schemas.py",
+      "sha256": "3a4fba40d005305fba44d428ced7f275e24179ba4942b3ac999a97423051dbd1",
+      "size_bytes": 32336,
+      "lines": 773,
+      "tier": "Tier 0 (Constitutional Core)",
+      "description": "Control script schemas.py",
+      "status": "BASELINE_SEALED"
+    },
+    "scorecard.py": {
+      "path": "scorecard.py",
+      "sha256": "18de9d640f8cb019c8cb8005ae00670110339b45088a891c45954e1ce995d36d",
+      "size_bytes": 9861,
+      "lines": 222,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script scorecard.py",
+      "status": "BASELINE_SEALED"
+    },
+    "sequence_engine.py": {
+      "path": "sequence_engine.py",
+      "sha256": "04c624ac99cb25701e270ef50b8306787bc1bf866a62b485806c674f7309c991",
+      "size_bytes": 10135,
+      "lines": 283,
+      "tier": "Tier 0 (Constitutional Core)",
+      "description": "Control script sequence_engine.py",
+      "status": "BASELINE_SEALED"
+    },
+    "sequence_server.py": {
+      "path": "sequence_server.py",
+      "sha256": "5d4ed06131fc1f0b0dbfa29d8d1c6c19440b28d191793d7cf5e29c5e6d24f1de",
+      "size_bytes": 10975,
+      "lines": 282,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script sequence_server.py",
+      "status": "BASELINE_SEALED"
+    },
+    "setup_hooks.py": {
+      "path": "setup_hooks.py",
+      "sha256": "e55fa8cdb0291cf9a928c4beeeb4f54a7f436db98587c021abe97901f67a8795",
+      "size_bytes": 1627,
+      "lines": 54,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script setup_hooks.py",
+      "status": "BASELINE_SEALED"
+    },
+    "slice_gate.py": {
+      "path": "slice_gate.py",
+      "sha256": "40e52d0bb1c69af16129bcbb966c99e4ae0d420591c0c6739d50ca45fc55322c",
+      "size_bytes": 8150,
+      "lines": 176,
+      "tier": "Tier 1 (Gate Enforcement)",
+      "description": "Control script slice_gate.py",
+      "status": "BASELINE_SEALED"
+    },
+    "verify.py": {
+      "path": "verify.py",
+      "sha256": "f66c9cd0fe46b972229107e3f282088030361c1dfbfaea711bc3b754465c1007",
+      "size_bytes": 8099,
+      "lines": 193,
+      "tier": "Tier 1 (Gate Enforcement)",
+      "description": "Control script verify.py",
+      "status": "BASELINE_SEALED"
+    },
+    "watchdog.py": {
+      "path": "watchdog.py",
+      "sha256": "b1bb6105da718dc1197a1f9368475df15c8504eb70bd9a8fb51e935c42a1c6fd",
+      "size_bytes": 19103,
+      "lines": 430,
+      "tier": "Tier 2 (State/Ops)",
+      "description": "Control script watchdog.py",
+      "status": "BASELINE_SEALED"
+    }
+  }
+}
