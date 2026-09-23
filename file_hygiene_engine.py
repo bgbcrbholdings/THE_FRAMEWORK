@@ -76,15 +76,22 @@ def _get_remediation_allowlist_from_findings(project_root: Path, slice_id: str) 
             target_url = finding.get("remediation", {}).get("target_location", "")
             if target_url:
                 raw_path_str = unquote(target_url.split("#")[0].replace("file:///", ""))
-                p_obj = Path(raw_path_str)
-                if p_obj.is_absolute():
-                    try:
-                        rel = p_obj.resolve().relative_to(p_root)
-                        allowlist.add((p_root / rel).resolve())
-                    except ValueError:
-                        allowlist.add((p_root / p_obj.name).resolve())
-                else:
+                clean_path_str = re.sub(r'^[a-zA-Z]:', '', raw_path_str).lstrip('/\\')
+                p_obj = Path(clean_path_str)
+                parts = p_obj.parts
+                if p_root.name in parts:
+                    idx = parts.index(p_root.name)
+                    rel_parts = parts[idx + 1:]
+                    if rel_parts:
+                        allowlist.add((p_root / Path(*rel_parts)).resolve())
+                    else:
+                        allowlist.add(p_root.resolve())
+                elif len(parts) > 1 and not (parts[0].endswith(':') or parts[0] in ('C', 'c', 'D', 'd', 'Linkstream')):
                     allowlist.add((p_root / p_obj).resolve())
+                elif (p_root / p_obj).exists():
+                    allowlist.add((p_root / p_obj).resolve())
+                else:
+                    allowlist.add((p_root / p_obj.name).resolve())
 
     return allowlist
 

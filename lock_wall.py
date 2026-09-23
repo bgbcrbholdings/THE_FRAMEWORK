@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 # Root Anchoring
 APPROVED_ROOT_DIR = Path(__file__).resolve().parent
 
-# 21 TCB Engine Scripts
+# 22 TCB Engine Scripts
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
