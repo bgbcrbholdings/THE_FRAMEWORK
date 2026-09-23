@@ -16,7 +16,7 @@ from pathlib import Path
 
 from sequence_engine import APPROVED_ROOT_DIR, validate_and_open_path
 
-# Complete 13-script TCB Engine List
+# Complete TCB Engine List
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
@@ -30,7 +30,8 @@ TCB_ENGINE_SCRIPTS = [
     "project_wizard.py",
     "lock_wall.py",
     "slice_gate.py",
-    "allowlist_sync.py"
+    "allowlist_sync.py",
+    "control_script_guard.py"
 ]
 
 def compute_file_sha256(file_path):
