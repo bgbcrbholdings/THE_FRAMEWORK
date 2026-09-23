@@ -2,7 +2,7 @@
   "manifest_name": "CONTROL_PLANE_MANIFEST",
   "version": "1.0.0-baseline",
   "created_utc": "2026-09-23T16:03:00Z",
-  "script_count": 17,
+  "script_count": 18,
   "governance_anchors": {
     "constitution_sha256": "0775225037844b9681b55241ce9252bb7a24c7393b269d911d6452a3ba6a36cc",
     "bootstrap_sha256": "",
@@ -44,6 +44,15 @@
       "tier": "Tier 1 (Gate Enforcement)",
       "description": "Review Packet Assembly & Finding Chaining",
       "status": "REMEDIATED_T1"
+    },
+    "control_script_guard.py": {
+      "path": "control_script_guard.py",
+      "sha256": "26d3f4582973b0c6a9a4bfadf136580372767c4543287109d23833295156eb1b",
+      "size_bytes": 4520,
+      "lines": 144,
+      "tier": "Tier 0 (Constitutional Core)",
+      "description": "Self-Attestation & Subprocess Jail Guard",
+      "status": "IMPLEMENTED_T2"
     },
     "file_hygiene_engine.py": {
       "path": "file_hygiene_engine.py",
