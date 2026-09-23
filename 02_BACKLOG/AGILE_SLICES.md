@@ -1,7 +1,7 @@
 # Resequenced Agile Slices: Master Central Brain Project
-**STATUS: LOCKED — MANDATORY REVELATION REVIEW SEQUENCE AUDIT PASSED for slice-006-genesis-test-harness**
+**STATUS: LOCKED — MANDATORY REVELATION REVIEW SEQUENCE AUDIT PASSED for slice-009-lifecycle-circuit-breaker**
 
-The Master Control Engine is decomposed into 8 strictly resequenced feature slices, ordered so that the zero-LLM review parser and packet builder engine (`slice-001-off-grid-review-parser`) is locked FIRST to eliminate review sequence drift, followed by security, watchdog, and governance primitives before agent dispatch and UI dashboards.
+The Master Control Engine is decomposed into 9 strictly resequenced feature slices, ordered so that the zero-LLM review parser and packet builder engine (`slice-001-off-grid-review-parser`) is locked FIRST to eliminate review sequence drift, followed by security, watchdog, governance primitives, and lifecycle circuit breakers before agent dispatch and UI dashboards.
 
 Every slice uses the dual-naming convention: **Senior Lead Dev Level Title (`descriptive-slice-id`)**.
 
@@ -15,6 +15,7 @@ Every slice uses the dual-naming convention: **Senior Lead Dev Level Title (`des
 | `slice-006-genesis-test-harness` | **Slice 006: Project Genesis & 0-Pip Test Harness** | MEDIUM | [LOCKED & SEALED] | `ADR-003` (0-pip test harness stub generator) | `04_REVIEWS/slice-006-genesis-test-harness/` | `project_wizard.py`, `new_project.bat`, `tests/test_runner.py`, `schemas.py`, `tests/**` |
 | `slice-007-grand-chess-board-ui` | **Slice 007: Grand Chess Board Command Center UI & Archify Renderer** | HIGH | [CP-Review Gated] | `ADR-001` (No-code fleet dashboard, GitHub Projects, `tt-a1i/archify` static SVG renderer) | `04_REVIEWS/slice-007-grand-chess-board-ui/` | `dashboard/**`, `telemetry.py`, `tests/**` |
 | `slice-008-architectural-lock-wall` | **Slice 008: 1-Way Door Architectural Lock Wall, Graphify AST Parser & CodeGraph Symbol Mapper** | MEDIUM | [COMPLETED & MERGED ON MAIN] | `ADR-001` (Quorum consensus gating, header enforcer, JSON sanitizer, `Graphify-Labs/graphify` AST grapher, `colbymchenry/codegraph` symbol mapper) | `04_REVIEWS/slice-008-architectural-lock-wall/` | `lock_wall.py`, `file_hygiene_engine.py`, `parse_reviews.py`, `backup_engine.py`, `schemas.py`, `tests/**` |
+| `slice-009-lifecycle-circuit-breaker` | **Slice 009: Slice Lifecycle Circuit Breaker & Pre-Write Gate** | HIGH | [LOCKED & SEALED ON MAIN] | `ADR-005`, `ADR-008`, `ADR-011` (`Ontology_Guardrails_for_Agentic_Systems_SOP.docx`, Action-aware pre-flight gate, cryptographic packet hash binding, pre-write safe_write interceptor) | `04_REVIEWS/slice-009-lifecycle-circuit-breaker/` | `slice_gate.py`, `file_hygiene_engine.py`, `verify.py`, `lock_wall.py`, `agent_dispatcher.py`, `setup_hooks.py`, `tests/test_slice_gate.py` |
 
 ---
 *Enforced by Sequence Control Engine & Automated File Hygiene Watchdog*

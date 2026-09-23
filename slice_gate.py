@@ -127,9 +127,13 @@ def check_slice_action_allowed(slice_id: str, action: str, project_root: Path) -
         return
 
     verdict = slice_entry.get("overall_verdict", "BLOCKED")
+    gate_status = slice_entry.get("gate_status", "OK")
 
     # Strict Deny-by-Default for IMPLEMENTATION and LOCK actions
     if action in (IMPLEMENTATION_ACTIONS | LOCK_ACTIONS):
+        if gate_status == "ALLOWLIST_PR_PENDING":
+            raise SliceGateDeniedError(f"Slice '{slice_id}' has pending ALLOWLIST PR. Action '{action}' DENIED.", code="ALLOWLIST_PR_PENDING")
+
         if verdict != "APPROVED":
             raise SliceGateDeniedError(f"Slice '{slice_id}' status is '{verdict}' (not 'APPROVED'). Action '{action}' DENIED.", code="VERDICT_NOT_APPROVED")
 

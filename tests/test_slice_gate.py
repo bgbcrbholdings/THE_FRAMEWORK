@@ -268,7 +268,7 @@ class TestSliceGate(unittest.TestCase):
                             "id": "FINDING-001",
                             "status": "OPEN",
                             "remediation": {
-                                "target_location": "file:///C:/Linkstream/00_DEV_TEAM_SEQUENCE/file_hygiene_engine.py#L0010"
+                                "target_location": f"file:///{self.test_dir.as_posix()}/file_hygiene_engine.py#L0010"
                             }
                         }
                     ]

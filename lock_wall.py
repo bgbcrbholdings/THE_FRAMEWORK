@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 # Root Anchoring
 APPROVED_ROOT_DIR = Path(__file__).resolve().parent
 
-# 20 TCB Engine Scripts
+# 21 TCB Engine Scripts
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
@@ -40,6 +40,7 @@ TCB_ENGINE_SCRIPTS = [
     "regr_watchdog.py",
     "test_cp_review.py",
     "slice_gate.py",
+    "allowlist_sync.py",
 ]
 
 # Win32 Reparse Point Flags

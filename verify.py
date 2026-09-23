@@ -16,7 +16,7 @@ from pathlib import Path
 
 from sequence_engine import APPROVED_ROOT_DIR, validate_and_open_path
 
-# Complete 12-script TCB Engine List
+# Complete 13-script TCB Engine List
 TCB_ENGINE_SCRIPTS = [
     "verify.py",
     "sequence_server.py",
@@ -29,7 +29,8 @@ TCB_ENGINE_SCRIPTS = [
     "watchdog.py",
     "project_wizard.py",
     "lock_wall.py",
-    "slice_gate.py"
+    "slice_gate.py",
+    "allowlist_sync.py"
 ]
 
 def compute_file_sha256(file_path):
@@ -147,6 +148,34 @@ def run_verification(mode="precommit", root_dir_str=None):
     print(f" [OK] Lock manifest & boot digest verification passed for {root_dir.name}.")
     return True
 
+def run_prepush_verification(root_dir):
+    """Local Pre-Push CI Emulation. Diffs local branch against origin/main:ALLOWLIST.txt."""
+    try:
+        subprocess.run(["git", "fetch", "origin", "main", "--quiet"], cwd=root_dir, shell=False, check=False)
+        raw_allowlist = subprocess.run(["git", "show", "origin/main:ALLOWLIST.txt"], cwd=root_dir, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if raw_allowlist.returncode != 0:
+            print(" [!] PRE-PUSH GATE WARNING: origin/main:ALLOWLIST.txt is unreadable. Skipping prepush diff check.")
+            return True
+
+        allowlist = {line.strip() for line in raw_allowlist.stdout.splitlines() if line.strip() and not line.strip().startswith("#")}
+
+        raw_changed = subprocess.run(["git", "diff", "--name-only", "-z", "--diff-filter=ACDMRTUXB", "origin/main", "HEAD"], cwd=root_dir, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        changed_files = {p.decode("utf-8") for p in raw_changed.stdout.split(b"\x00") if p}
+
+        disallowed = sorted(changed_files - allowlist)
+        if disallowed:
+            print("\n [!] PRE-PUSH GATE DENIAL: Changed paths not authorized by base ALLOWLIST.txt on origin/main:", file=sys.stderr)
+            for p in disallowed:
+                print(f"  - '{p}'", file=sys.stderr)
+            print("\nSubmit an ALLOWLIST contract PR or merge chore/allowlist before pushing.\n", file=sys.stderr)
+            return False
+
+        print(" [OK] Local Pre-Push CI Emulation passed: all changed paths authorized by origin/main:ALLOWLIST.txt.")
+        return True
+    except Exception as e:
+        print(f" [!] PRE-PUSH VERIFICATION EXCEPTION: {e}", file=sys.stderr)
+        return False
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "precommit"
     p_dir = sys.argv[2] if len(sys.argv) > 2 else str(APPROVED_ROOT_DIR)
@@ -154,6 +183,11 @@ if __name__ == "__main__":
     if mode == "generate":
         generate_lock_manifest(Path(p_dir).resolve())
         sys.exit(0)
+
+    if mode == "prepush":
+        ok_prepush = run_prepush_verification(Path(p_dir).resolve())
+        if not ok_prepush:
+            sys.exit(1)
 
     ok = run_verification(mode, p_dir)
     sys.exit(0 if ok else 1)

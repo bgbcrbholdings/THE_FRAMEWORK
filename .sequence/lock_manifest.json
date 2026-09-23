@@ -1,17 +1,18 @@
 {
   "hashes": {
-    ".sequence/mrac_rules.json": "642a0237cd054ab309eece01949f5a231d8126abd7db9bd23cdf5a65d87c1bd9",
+    ".sequence/mrac_rules.json": "eb63b46e205d47bcb7402b52f146b50b82f01b8f01754fb0ac4fc5bdf09576fd",
     "agent_dispatcher.py": "ea0e1947e4715c93fd7b347462cd3c5bb4715b31b1fa519130bf94de69705e42",
-    "auditor_agent.py": "0440cc47d86894eea434f6bab3077415517f41da9c3d36a5e26634c791035e36",
+    "allowlist_sync.py": "7d158f91a83635d5d1c375d347e32be30dedbeef4cd8c96380583d3586ad3bcd",
+    "auditor_agent.py": "34771ce3ae2393236ab827950d8f3d0b641ea15cf85773f303594f299ada5b21",
     "backup_engine.py": "a6ad251f67eef9571b35d9695aca6bf9909c48e7f4b60f981342cc51e9bafeca",
     "build_packet.py": "15ffefe17570b2d023c5710cc9fa58197627cedc8bacb7fa56a7359681afbebb",
     "dashboard/app.js": "3a49d14cffdc0738040b227186edf4dba2cfb7a74a57b52a2bc4a919d4f1c78e",
     "dashboard/archify.js": "da43dc9444af30b2b1ea7e8c67975684e113e47324a2fb8c6fc2a51e5eed3da6",
     "dashboard/fleet_telemetry.json": "e9219140988068ac546bafa02adc5d8d0776e772a79dd53f3a0dc2f4b0e1c86e",
     "dashboard/index.html": "d035573b1bda488af9a32ead04e54f2aab22ae286cda254aadb1ec0bbaede610",
-    "dashboard/scorecard.html": "ce0fa72b3f99479a083c1cc7311330a791e87a64aaebceff5c6b2df9521ee67e",
+    "dashboard/scorecard.html": "1dbc3298f7f54b610606743a7aa9a67512b03e1cf844cfb3163991087636c43e",
     "file_hygiene_engine.py": "e6e654d994fa73df50f1b55e26ab32e84ed8ef241c6c80e1d3991e3dca3673f9",
-    "lock_wall.py": "3b4859ca2ce8a1f565a34e417d37a96e7dd9e0a1711b160835c3fb29e0f0e788",
+    "lock_wall.py": "2d30944fcec25c8e9d9c54f4537f6417432743eb1ad8369056fc153edd9bef19",
     "packet_verify.py": "1e49647dc5b5a830269ed7be81bf690aaaaafb7ced3312900f038aabd3fc31c7",
     "parse_reviews.py": "b122c103cbbc4c38ec132087244038e0079ab0f4dbba108c968ba5f58387a0a4",
     "pathfinder_server.py": "76a3d725eb9ae3b855753025317c1754c3c13995e8caef41d9c6de576fc1706d",
@@ -22,15 +23,15 @@
     "sequence_engine.py": "04c624ac99cb25701e270ef50b8306787bc1bf866a62b485806c674f7309c991",
     "sequence_server.py": "5d4ed06131fc1f0b0dbfa29d8d1c6c19440b28d191793d7cf5e29c5e6d24f1de",
     "setup_hooks.py": "e55fa8cdb0291cf9a928c4beeeb4f54a7f436db98587c021abe97901f67a8795",
-    "slice_gate.py": "92dfcd8ee6ea5275e0ea7b6d55413d0f5b7076c0614428c700c29c1a20641370",
+    "slice_gate.py": "40e52d0bb1c69af16129bcbb966c99e4ae0d420591c0c6739d50ca45fc55322c",
     "telemetry.py": "5b2cc03102d885f3fc97c290c63141d62c67cee26aca1c1dd3a51690aecf2134",
     "test_cp_review.py": "8b122ee2b300849a85d23c1af30d3009d5e28217f98d380c9f2dbb46ff0fd397",
-    "verify.py": "fc405283d2a96fafd40a6570a48a8a659bcbc18cd15fca4a325dbf12e7a713d8",
+    "verify.py": "f66c9cd0fe46b972229107e3f282088030361c1dfbfaea711bc3b754465c1007",
     "watchdog.py": "b1bb6105da718dc1197a1f9368475df15c8504eb70bd9a8fb51e935c42a1c6fd"
   },
   "manifest_version": "1.0.0",
   "slice_id": "slice-008-architectural-lock-wall",
   "status": "SEALED",
-  "tcb_scripts_count": 21,
-  "total_tcb_targets_count": 27
+  "tcb_scripts_count": 22,
+  "total_tcb_targets_count": 28
 }
