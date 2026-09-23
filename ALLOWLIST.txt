@@ -36,3 +36,5 @@ tests/test_genesis.py
 tests/test_pathfinder.py
 tests/test_scorecard.py
 tests/test_slice_gate.py
+allowlist_sync.py
+tests/test_allowlist_sync.py
