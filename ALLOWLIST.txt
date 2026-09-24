@@ -44,3 +44,13 @@ tests/test_slice_gate.py
 tests/test_allowlist_sync.py
 tests/control_plane/tier_0/test_control_script_guard_contracts.py
 tests/control_plane/tier_1/test_build_packet_contracts.py
+tests/control_plane/tier_0/test_sequence_engine_hardening_contracts.py
+tests/control_plane/tier_1/test_agent_dispatcher_contracts.py
+workers/ci_fetcher.py
+workers/diff_validator.py
+workers/schema_gate_worker.py
+workers/manifest_builder.py
+second_brain/ledger.py
+session_bootstrap.py
+tests/second_brain/test_ledger_contracts.py
+
