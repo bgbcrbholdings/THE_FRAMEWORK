@@ -15,7 +15,7 @@
     "sequence_server.py": "5d4ed06131fc1f0b0dbfa29d8d1c6c19440b28d191793d7cf5e29c5e6d24f1de",
     "setup_hooks.py": "e55fa8cdb0291cf9a928c4beeeb4f54a7f436db98587c021abe97901f67a8795",
     "slice_gate.py": "40e52d0bb1c69af16129bcbb966c99e4ae0d420591c0c6739d50ca45fc55322c",
-    "verify.py": "5634892ca6870f2c1dbc7b83bbad11d2f09f148e178e80f194837858ebd1f3e4",
+    "verify.py": "87e150b5e765059ba080546904ea02907ce11c1b82f5350eb948e68c14d13f41",
     "watchdog.py": "b1bb6105da718dc1197a1f9368475df15c8504eb70bd9a8fb51e935c42a1c6fd"
   },
   "manifest_version": "1.0.0",
