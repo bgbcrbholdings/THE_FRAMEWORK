@@ -278,6 +278,49 @@ def get_or_create_active_session(root_dir=APPROVED_ROOT_DIR):
         return generate_and_save_session(root_path)
 
 
+def verify_startup_integrity():
+    """
+    Tier 0 Constitutional Guard Startup Verification.
+    Invokes control_script_guard.verify_control_plane_integrity() to ensure
+    control plane integrity before proceeding with any sequence execution.
+    Exits 101 on verification failure or hash drift.
+    """
+    try:
+        import control_script_guard
+        return control_script_guard.verify_control_plane_integrity()
+    except Exception as e:
+        sys.stderr.write(f"[!] FATAL: Tier 0 startup attestation failure: {e}\n")
+        sys.exit(101)
+
+
+def handle_fatal_execution_error(exit_code, slice_id=None):
+    """
+    Handles fatal control plane exit codes (Exit 7 checklist truncation, Exit 101 hash breach)
+    by updating sequence state to HALTED_REQUIRES_HUMAN_INTERVENTION and terminating
+    via SystemExit(exit_code).
+    """
+    sec_dir = APPROVED_ROOT_DIR / ".sequence"
+    sec_dir.mkdir(parents=True, exist_ok=True)
+    state_file = sec_dir / "active_packet.json"
+    
+    try:
+        packet_data = {}
+        if state_file.exists():
+            with validate_and_open_path(state_file, root_dir_str=str(APPROVED_ROOT_DIR), mode="r") as f:
+                packet_data = json.load(f)
+        packet_data["status"] = "HALTED_REQUIRES_HUMAN_INTERVENTION"
+        packet_data["halt_reason"] = f"Fatal control-plane error exit code {exit_code}"
+        packet_data["halt_slice_id"] = slice_id
+        with validate_and_open_path(state_file, root_dir_str=str(APPROVED_ROOT_DIR), mode="w") as f:
+            json.dump(packet_data, f, indent=2)
+    except Exception:
+        pass
+
+    sys.exit(exit_code)
+
+
 if __name__ == "__main__":
+    verify_startup_integrity()
     sess = get_or_create_active_session()
     print(f" [+] Sequence Session Active. Token: {sess['sequence_token'][:8]}... CSRF Nonce: {sess['csrf_nonce']}")
+
