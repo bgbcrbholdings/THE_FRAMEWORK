@@ -119,12 +119,12 @@
     },
     "sequence_engine.py": {
       "path": "sequence_engine.py",
-      "sha256": "04c624ac99cb25701e270ef50b8306787bc1bf866a62b485806c674f7309c991",
-      "size_bytes": 10135,
-      "lines": 283,
+      "sha256": "a0797a1c8c56025966e255cb4b6b46a6ca380b050f744c2fa1a168fe6deec0fb",
+      "size_bytes": 11783,
+      "lines": 326,
       "tier": "Tier 0 (Constitutional Core)",
       "description": "Control script sequence_engine.py",
-      "status": "BASELINE_SEALED"
+      "status": "REMEDIATED_T3"
     },
     "sequence_server.py": {
       "path": "sequence_server.py",
@@ -155,9 +155,9 @@
     },
     "verify.py": {
       "path": "verify.py",
-      "sha256": "f66c9cd0fe46b972229107e3f282088030361c1dfbfaea711bc3b754465c1007",
-      "size_bytes": 8099,
-      "lines": 193,
+      "sha256": "5634892ca6870f2c1dbc7b83bbad11d2f09f148e178e80f194837858ebd1f3e4",
+      "size_bytes": 8120,
+      "lines": 194,
       "tier": "Tier 1 (Gate Enforcement)",
       "description": "Control script verify.py",
       "status": "BASELINE_SEALED"
