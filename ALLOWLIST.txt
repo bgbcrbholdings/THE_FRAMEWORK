@@ -51,6 +51,8 @@ workers/diff_validator.py
 workers/schema_gate_worker.py
 workers/manifest_builder.py
 second_brain/ledger.py
+second_brain/__init__.py
 session_bootstrap.py
 tests/second_brain/test_ledger_contracts.py
+
 
