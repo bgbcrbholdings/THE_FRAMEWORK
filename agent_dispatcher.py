@@ -37,7 +37,85 @@ ENVIRONMENT_ALLOWLIST = {'PATH', 'SYSTEMROOT', 'TEMP', 'TMP', 'SYSTEMDRIVE'}
 FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 
+WORKER_REGISTRY = {
+    "ci_fetcher": "workers/ci_fetcher.py",
+    "diff_validator": "workers/diff_validator.py",
+    "schema_gate_worker": "workers/schema_gate_worker.py",
+    "manifest_builder": "workers/manifest_builder.py"
+}
+
+APPROVED_ROOT_DIR = Path(__file__).resolve().parent
+
+
+def build_sanitized_worker_env():
+    """
+    Returns a dictionary of environment variables strictly filtered down to ENVIRONMENT_ALLOWLIST.
+    Prevents secret leakage to subprocess workers.
+    """
+    sanitized = {}
+    for key in ENVIRONMENT_ALLOWLIST:
+        if key in os.environ:
+            sanitized[key] = os.environ[key]
+    return sanitized
+
+
+def dispatch_worker(worker_name, payload=None, project_dir=None):
+    """
+    Invokes registered worker script in an isolated subprocess with a sanitized environment.
+    Fails closed if worker is unregistered or escapes approved directory jail.
+    """
+    if worker_name not in WORKER_REGISTRY:
+        raise ValueError(f"UNREGISTERED_WORKER: '{worker_name}' is not in WORKER_REGISTRY")
+
+    script_rel_path = WORKER_REGISTRY[worker_name]
+    script_abs_path = APPROVED_ROOT_DIR / script_rel_path
+
+    if not script_abs_path.exists():
+        raise FileNotFoundError(f"WORKER_NOT_FOUND: Worker script '{script_abs_path}' missing")
+
+    if project_dir is None:
+        project_dir = APPROVED_ROOT_DIR
+
+    scratch_dir = Path(project_dir) / "03_STATE" / "scratch"
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+
+    sanitized_env = build_sanitized_worker_env()
+    cmd = [sys.executable, str(script_abs_path)]
+
+    # If payload provided, write to temp file in scratch dir
+    temp_payload_path = None
+    if payload is not None:
+        temp_payload = tempfile.NamedTemporaryFile(mode="w", dir=scratch_dir, delete=False, suffix=".json")
+        json.dump(payload, temp_payload)
+        temp_payload.close()
+        temp_payload_path = temp_payload.name
+        cmd.append(temp_payload_path)
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(scratch_dir),
+            env=sanitized_env,
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        return {
+            "status": "SUCCESS" if proc.returncode == 0 else "FAIL",
+            "exit_code": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr": proc.stderr
+        }
+    finally:
+        if temp_payload_path and os.path.exists(temp_payload_path):
+            try:
+                os.remove(temp_payload_path)
+            except Exception:
+                pass
+
+
 APPROVED_EXECUTABLE_BASENAMES = {
+
     'python.exe', 'pythonw.exe', 'py.exe',
     'claude.exe', 'codex.exe', 'kimi.exe', 'qwen.exe',
     'python', 'claude', 'codex', 'kimi', 'qwen'

@@ -11,12 +11,12 @@
   "scripts": {
     "agent_dispatcher.py": {
       "path": "agent_dispatcher.py",
-      "sha256": "ea0e1947e4715c93fd7b347462cd3c5bb4715b31b1fa519130bf94de69705e42",
-      "size_bytes": 29856,
-      "lines": 725,
+      "sha256": "36cb0b4af29ade27699b4dfae0bf3bf778216033917e7c05d7ad6a919a90dc6b",
+      "size_bytes": 32406,
+      "lines": 803,
       "tier": "Tier 1 (Gate Enforcement)",
       "description": "Control script agent_dispatcher.py",
-      "status": "BASELINE_SEALED"
+      "status": "IMPLEMENTED_T4"
     },
     "allowlist_sync.py": {
       "path": "allowlist_sync.py",
