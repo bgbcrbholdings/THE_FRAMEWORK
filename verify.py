@@ -178,6 +178,21 @@ def run_prepush_verification(root_dir):
         return False
 
 if __name__ == "__main__":
+    if "--verify-ledger" in sys.argv:
+        p_dir = str(APPROVED_ROOT_DIR)
+        for arg in sys.argv[1:]:
+            if not arg.startswith("--"):
+                p_dir = arg
+                break
+        from second_brain.ledger import verify_project_ledger
+        is_valid, msg = verify_project_ledger(p_dir)
+        if is_valid:
+            print(f" [OK] Second-Brain Event Ledger verification passed: {msg}")
+            sys.exit(0)
+        else:
+            print(f" [!] SECOND-BRAIN LEDGER INTEGRITY BREACH: {msg}", file=sys.stderr)
+            sys.exit(1)
+
     mode = sys.argv[1] if len(sys.argv) > 1 else "precommit"
     p_dir = sys.argv[2] if len(sys.argv) > 2 else str(APPROVED_ROOT_DIR)
 
@@ -192,3 +207,4 @@ if __name__ == "__main__":
 
     ok = run_verification(mode, p_dir)
     sys.exit(0 if ok else 1)
+

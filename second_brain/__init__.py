@@ -1,0 +1,3 @@
+"""
+Second-Brain Package Initializer.
+"""
